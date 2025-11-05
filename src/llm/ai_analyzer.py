@@ -66,8 +66,6 @@ Status: {task_data.get('status', 'notStarted')}
             prompt += f"\n\nLinked Content:\n{truncated_content}\n"
 
         prompt += """
-Context: This task belongs to Bryan, who works in healthcare/medicine and AI/technology.
-
 Please analyze this task and provide the following in valid JSON format:
 
 {
@@ -80,7 +78,7 @@ Please analyze this task and provide the following in valid JSON format:
   "urgency_level": "one of: critical, high, medium, low",
   "suggested_action": "Next action to take (imperative form)",
   "key_insights": ["insight1", "insight2", "insight3"],
-  "why_it_matters": "One sentence explaining why this specifically matters to Bryan given his healthcare/AI focus"
+  "why_it_matters": "One sentence explaining why this task matters"
 }
 
 Respond ONLY with the JSON object, no additional text.
@@ -116,7 +114,7 @@ Respond ONLY with the JSON object, no additional text.
             "urgency_level": "medium",
             "suggested_action": f"Review this task and determine next steps",
             "key_insights": ["Task requires review", "No additional analysis available"],
-            "why_it_matters": "This task may relate to your healthcare and AI work"
+            "why_it_matters": "This task needs attention"
         }
 
 
