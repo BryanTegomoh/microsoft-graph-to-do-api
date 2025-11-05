@@ -1,0 +1,63 @@
+# Environment variables
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data and cache
+data/
+cache/
+*.db
+*.sqlite
+*.log
+
+# Secrets and credentials
+credentials.json
+token.json
+token_cache.json
+client_secret*.json
+
+# Output (keep documentation)
+output/
+reports/
+task_manager.log
+
+# Documentation (local only - not for public repo)
+docs/
+
+# LLM/AI and editor artifacts
+.claude/
+.cursor/
+.anthropic/
+.openai/
+
+# Additional Python/cache/test artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+coverage/
+.tox/
+.python-version

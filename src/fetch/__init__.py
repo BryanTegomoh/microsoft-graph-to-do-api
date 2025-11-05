@@ -1,0 +1,1 @@
+"""Web content fetching module."""
