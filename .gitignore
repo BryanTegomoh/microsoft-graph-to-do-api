@@ -69,3 +69,6 @@ test_email.py
 coverage/
 .tox/
 .python-version
+
+# Comprehensive build documentation (private - keep local)
+COMPLETE_BUILD_GUIDE.md
