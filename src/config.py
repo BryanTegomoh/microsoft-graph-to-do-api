@@ -22,11 +22,13 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    XAI_API_KEY = os.getenv("XAI_API_KEY")
 
     # AI Models
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
     ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
     GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-pro")
+    XAI_MODEL = os.getenv("XAI_MODEL", "grok-beta")
 
     # Application Settings
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -68,6 +70,8 @@ class Config:
             errors.append("ANTHROPIC_API_KEY is required when using Anthropic")
         elif cls.AI_PROVIDER == "google" and not cls.GOOGLE_API_KEY:
             errors.append("GOOGLE_API_KEY is required when using Google")
+        elif cls.AI_PROVIDER == "xai" and not cls.XAI_API_KEY:
+            errors.append("XAI_API_KEY is required when using xAI Grok")
 
         # Validate email config if enabled
         if cls.SEND_EMAIL_BRIEF:

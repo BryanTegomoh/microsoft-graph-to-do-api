@@ -202,6 +202,57 @@ class GoogleProvider(AIProvider):
         return AnthropicProvider._get_fallback_analysis(self)
 
 
+class XAIProvider(AIProvider):
+    """xAI Grok provider."""
+
+    def __init__(self):
+        """Initialize xAI provider."""
+        try:
+            import openai
+            # Grok uses OpenAI-compatible API
+            self.client = openai.OpenAI(
+                api_key=Config.XAI_API_KEY,
+                base_url="https://api.x.ai/v1"
+            )
+            self.model = Config.XAI_MODEL
+        except ImportError:
+            raise ImportError("openai package not installed. Run: pip install openai")
+
+    def analyze_task(self, task_data: Dict, content: Optional[str] = None) -> Dict:
+        """Analyze a task using Grok."""
+        prompt = self._build_analysis_prompt(task_data, content)
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a task analysis expert. Respond only with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1024
+            )
+
+            response_text = response.choices[0].message.content
+            return self._parse_response(response_text)
+
+        except Exception as e:
+            logger.error(f"Error calling xAI API: {e}")
+            return self._get_fallback_analysis()
+
+    def _build_analysis_prompt(self, task_data: Dict, content: Optional[str]) -> str:
+        """Build the analysis prompt (same as Anthropic)."""
+        return AnthropicProvider._build_analysis_prompt(self, task_data, content)
+
+    def _parse_response(self, response_text: str) -> Dict:
+        """Parse the AI response (same as Anthropic)."""
+        return AnthropicProvider._parse_response(self, response_text)
+
+    def _get_fallback_analysis(self) -> Dict:
+        """Return fallback analysis (same as Anthropic)."""
+        return AnthropicProvider._get_fallback_analysis(self)
+
+
 class TaskAnalyzer:
     """Main task analyzer that uses configured AI provider."""
 
@@ -215,6 +266,8 @@ class TaskAnalyzer:
             self.provider = OpenAIProvider()
         elif provider_name == "google":
             self.provider = GoogleProvider()
+        elif provider_name == "xai":
+            self.provider = XAIProvider()
         else:
             raise ValueError(f"Unsupported AI provider: {provider_name}")
 

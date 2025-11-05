@@ -6,7 +6,7 @@ A personal productivity tool I built to manage information overload. Connects [M
 
 - Fetches my tasks from [Microsoft To Do](https://todo.microsoft.com) via [Microsoft Graph API](https://learn.microsoft.com/en-us/graph/api/resources/todo-overview)
 - Analyzes task content and extracts URLs for additional context
-- Uses AI ([Claude](https://anthropic.com/claude), [GPT-4](https://openai.com/gpt-4), or [Gemini](https://deepmind.google/technologies/gemini/)) to evaluate priority and suggest actions
+- Uses AI ([Claude](https://anthropic.com/claude), [GPT-4](https://openai.com/gpt-4), [Gemini](https://deepmind.google/technologies/gemini/), or [Grok](https://x.ai/)) to evaluate priority and suggest actions
 - Generates daily email briefs with actionable insights
 - Updates task priorities back to Microsoft To Do
 - Runs automatically on my schedule
@@ -40,7 +40,7 @@ Top Priority Tasks
 - [Python 3.8+](https://www.python.org/downloads/)
 - [Microsoft account](https://account.microsoft.com) with To Do
 - [Azure app registration](https://portal.azure.com) for Graph API access
-- API key from [Anthropic](https://console.anthropic.com/), [OpenAI](https://platform.openai.com/api-keys), or [Google](https://makersuite.google.com/app/apikey)
+- API key from [Anthropic](https://console.anthropic.com/), [OpenAI](https://platform.openai.com/api-keys), [Google](https://makersuite.google.com/app/apikey), or [xAI](https://console.x.ai/)
 
 ### Installation
 
@@ -83,7 +83,7 @@ First run requires device code authentication (one-time setup, token cached for 
 ## Features
 
 - **Smart Prioritization**: 5-factor weighted algorithm combining AI analysis, deadlines, recency, importance, and category
-- **Multi-AI Support**: Works with [Anthropic Claude](https://anthropic.com/claude), [OpenAI GPT-4](https://openai.com/gpt-4), or [Google Gemini](https://deepmind.google/technologies/gemini/)
+- **Multi-AI Support**: Works with [Anthropic Claude](https://anthropic.com/claude), [OpenAI GPT-4](https://openai.com/gpt-4), [Google Gemini](https://deepmind.google/technologies/gemini/), or [xAI Grok](https://x.ai/)
 - **Email Summaries**: HTML-formatted daily briefs with insights and recommendations
 - **URL Analysis**: Extracts and analyzes web content linked in tasks
 - **Automation Ready**: Compatible with [Windows Task Scheduler](https://learn.microsoft.com/en-us/windows/win32/taskschd/task-scheduler-start-page) or cron
@@ -92,7 +92,7 @@ First run requires device code authentication (one-time setup, token cached for 
 
 Key `.env` options:
 
-- `AI_PROVIDER` - Which AI service to use (anthropic/openai/google)
+- `AI_PROVIDER` - Which AI service to use (anthropic/openai/google/xai)
 - `ENABLE_TASK_UPDATES` - Update priorities in Microsoft To Do (true/false)
 - `SEND_EMAIL_BRIEF` - Email daily summaries (true/false)
 - `LOG_LEVEL` - Logging detail (INFO/DEBUG/WARNING)
@@ -132,6 +132,10 @@ src/
 **[Google Gemini](https://deepmind.google/technologies/gemini/)**
 - Get key: [makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
 - Add to `.env`: `GOOGLE_API_KEY=...`
+
+**[xAI Grok](https://x.ai/)**
+- Get key: [console.x.ai](https://console.x.ai/)
+- Add to `.env`: `XAI_API_KEY=xai-...`
 
 ## Customization
 
