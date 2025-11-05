@@ -10,6 +10,23 @@ An intelligent task management tool that connects Microsoft To Do with AI to aut
 - Generates daily email briefs with actionable insights
 - Updates task priorities back to Microsoft To Do
 - Runs automatically on a schedule
+- All processing happens locally - only AI analysis calls external APIs
+
+## Example Output
+
+After running, you'll receive an email brief with prioritized tasks:
+
+**Top Priority: Review Q4 budget report** (Score: 92/100)
+- Summary: Budget review requires approval before Friday deadline
+- Why it matters: Critical for stakeholder meeting next week
+- Next action: Schedule review with finance team
+- Time estimate: 45 minutes
+
+**High Priority: Respond to client proposal** (Score: 85/100)
+- Summary: Client awaiting feedback on project scope and timeline
+- Why it matters: Opportunity to close $50K contract
+- Next action: Draft response addressing their three key questions
+- Time estimate: 30 minutes
 
 ## Quick Start
 
