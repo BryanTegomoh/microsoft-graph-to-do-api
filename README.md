@@ -20,21 +20,21 @@ Currently processing ~58 tasks across 3 lists. Turns out most of mine end up in 
 From my actual tasks:
 
 ```
-🎯 Focus Today
+Focus Today
 
 1. Review healthcare AI startup applications (Priority: 87/100)
    Summary: 3 potential co-founder candidates interested in medical AI
    Why it matters: Time-sensitive - they're evaluating other opportunities
    Next action: Schedule intro calls this week
 
-📅 This Week
+This Week
 
 2. Read CDC autism-vaccine study (Priority: 72/100)
    Summary: New research on vaccine safety and developmental outcomes
    Why it matters: Relevant for current healthcare research project
    Next action: Review methodology and data sources
 
-📌 Later (42 more tasks)
+Later (42 more tasks)
 
 Research backlog, articles to read, things to explore when I have time...
 ```
