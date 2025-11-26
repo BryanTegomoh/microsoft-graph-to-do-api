@@ -81,7 +81,7 @@ class EmailSender:
         lines.append("🎯 TOP PRIORITIES FOR TODAY")
         lines.append("")
 
-        for i, item in enumerate(top_tasks[:5], 1):
+        for i, item in enumerate(top_tasks[:10], 1):
             task = item['task']
             analysis = item['analysis']
             score = item['priority_score']
@@ -192,7 +192,7 @@ class EmailSender:
         <h2>Top Priorities for Today</h2>
 """
 
-        for i, item in enumerate(top_tasks[:5], 1):
+        for i, item in enumerate(top_tasks[:10], 1):
             task = item['task']
             analysis = item['analysis']
             score = item['priority_score']
