@@ -1,6 +1,6 @@
 # Microsoft To Do AI Assistant
 
-I built this because my Microsoft To Do was becoming a black hole. Every time I found an interesting article about AI in healthcare, a research paper, or just something I wanted to read later, I'd throw it in To Do. Problem is, everything just piled up and I never knew what to actually focus on.
+I built this because my Microsoft To Do was becoming a black hole. Every time I found an interesting article about AI in healthcare, a research paper, or just something I wanted to read later, I'd throw it in To Do. Problem is, everthing just piled up and I never knew what to actually focus on.
 
 This tool connects Microsoft To Do with AI (Claude, GPT-4, Gemini, or Grok) to automatically analyze everything, figure out what matters, and send me a daily brief of what to actually pay attention to. Been running it daily since Nov 5, 2025.
 
@@ -39,7 +39,7 @@ From my actual tasks:
 Research backlog, articles to read, things to explore when I have time...
 ```
 
-The output is pretty emoji-heavy (🎯📅⏸️📌💡) - that's just how I like it.
+The output is pretty emoji-heavy but whatever, it works.
 
 ## Quick Start
 
@@ -110,7 +110,7 @@ This took me about 16 minutes to figure out the first time, so here's what actua
 
 ## AI Provider Setup
 
-I support four providers because I didn't want to lock into one. Pick your favorite:
+Supports four providers because I kept switching between them:
 
 **Anthropic Claude** (what I use most)
 - Get key: https://console.anthropic.com/
@@ -128,7 +128,7 @@ I support four providers because I didn't want to lock into one. Pick your favor
 - Get key: https://console.x.ai/
 - Add to `.env`: `AI_PROVIDER=xai` and `XAI_API_KEY=xai-...`
 
-All providers use the same prompt format and return the same analysis structure. Switching between them is just changing the `AI_PROVIDER` value.
+Switching providers is just changing `AI_PROVIDER` in your .env.
 
 ## Features & Design Decisions
 
@@ -140,9 +140,9 @@ All providers use the same prompt format and return the same analysis structure.
 
 **Caching**: 24-hour cache for fetched URLs (`CACHE_ENABLED=true`). Won't hammer the same article URL repeatedly.
 
-**Graceful Failures**: If AI fails, assigns default priority 50 and keeps going. The system won't crash just because Claude is down.
+**Graceful Failures**: If AI fails, it just assigns default priority 50 and keeps going.
 
-**Email Briefs**: HTML-formatted with color-coded priority badges, responsive design, plain text fallback. Went a bit overboard making these look nice.
+**Email Briefs**: HTML emails with priority badges. Spent way too much time on the styling tbh.
 
 ## Automation
 
@@ -155,13 +155,11 @@ This is built to run daily. I use Windows Task Scheduler:
 
 Works fine with cron on Linux/Mac too, just schedule `python main.py`.
 
-## Limitations & Known Issues
+## Limitations
 
-- Only fetches the **first** URL from each task (rate limit protection)
-- Web content truncated to 3000 chars (token limits)
-- Microsoft To Do list names must be unique (API limitation)
-- Device code auth token expires after 90 days (just re-authenticate)
-- Windows-focused (works on other platforms but paths/scripts are Windows-first)
+- Only fetches first URL per task (didn't want to get rate limited)
+- Auth token expires after 90 days, just re-auth when it happens
+- Mostly tested on Windows
 
 ## My Use Case
 
@@ -172,7 +170,7 @@ I'm researching the intersection of AI and healthcare, so my To Do is full of:
 - Co-founder search notes
 - CDC studies, clinical trials, etc.
 
-This tool helps me triage what's actually worth reading vs what can wait. Your mileage may vary if you use To Do for actual urgent tasks - mine is basically a reading list.
+Helps me triage whats worth reading vs what can wait. If you use To Do for actual urgent tasks this might not be as useful - mine is basically a reading list.
 
 ## Project Structure
 
@@ -187,30 +185,10 @@ src/
 └── utils/      # Logging utilities
 ```
 
-## Full Configuration Options
+## Config Options
 
-See `.env.example` for everything, but key ones:
-
-- `AI_PROVIDER` - Which AI service (anthropic/openai/google/xai)
-- `ENABLE_TASK_UPDATES` - Update priorities in Microsoft To Do (true/false)
-- `SEND_EMAIL_BRIEF` - Email daily summaries (true/false)
-- `CACHE_ENABLED` - Cache fetched URLs (true/false)
-- `CACHE_TTL_HOURS` - Cache lifetime (default: 24)
-- `LOG_LEVEL` - Logging detail (INFO/DEBUG/WARNING)
-
-Each AI provider also has model override options (`ANTHROPIC_MODEL`, `OPENAI_MODEL`, etc.) if you want to use something other than the defaults.
-
-## Customization
-
-**Change priority weights**: Edit `src/rules/priority_ranker.py` (line 15-19)
-**Tweak email template**: Edit `src/writers/email_sender.py` (HTML structure starts line 45)
-**Modify AI prompts**: Edit `src/llm/ai_analyzer.py` (main prompt is line 20-40)
-**Adjust timeframe buckets**: Edit `src/writers/markdown_writer.py` (line 25-30)
+Check `.env.example` for the full list. Main ones are `AI_PROVIDER`, `ENABLE_TASK_UPDATES`, `SEND_EMAIL_BRIEF`.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
-
----
-
-Built in Nov 2025. Runs daily. Actually works.
+MIT
