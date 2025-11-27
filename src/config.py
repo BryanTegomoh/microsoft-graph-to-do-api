@@ -26,7 +26,7 @@ class Config:
 
     # AI Models
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4-turbo-preview")
-    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
     GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-pro")
     XAI_MODEL = os.getenv("XAI_MODEL", "grok-beta")
 
