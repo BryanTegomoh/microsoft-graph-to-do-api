@@ -21,7 +21,7 @@ class TaskUpdater:
         """
         self.client = todo_client
 
-    def update_task_priority(self, task: Dict, priority_score: float, analysis: Dict) -> bool:
+    def update_task_priority(self, task: Dict, priority_score: float, analysis: Dict, show_score_in_title: bool = False) -> bool:
         """
         Update a task's priority based on AI analysis.
 
@@ -29,10 +29,13 @@ class TaskUpdater:
             task: Task metadata.
             priority_score: Calculated priority score (0-100).
             analysis: AI analysis results.
+            show_score_in_title: Whether to add priority score to task title.
 
         Returns:
             True if successful, False otherwise.
         """
+        from src.config import Config
+
         list_id = task.get("listId")
         task_id = task.get("id")
 
@@ -51,6 +54,16 @@ class TaskUpdater:
         updates = {
             "importance": importance
         }
+
+        # Add priority score to title if enabled
+        if show_score_in_title or Config.SHOW_PRIORITY_SCORES_IN_TASKS:
+            original_title = task.get("title", "")
+            # Remove existing score if present
+            import re
+            clean_title = re.sub(r'^\[[\d\.]+\]\s*', '', original_title)
+            # Add new score
+            new_title = f"[{priority_score:.0f}] {clean_title}"
+            updates["title"] = new_title
 
         # Optionally set due date if not already set
         if not task.get("due_date"):

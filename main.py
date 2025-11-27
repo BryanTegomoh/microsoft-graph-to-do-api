@@ -13,6 +13,7 @@ from src.rules.priority_ranker import PriorityRanker
 from src.writers.brief_generator import BriefGenerator
 from src.writers.task_updater import TaskUpdater
 from src.writers.email_sender import EmailSender
+from src.writers.email_sender_enhanced import EmailSenderEnhanced
 from src.analytics.weekly_trends import WeeklyTrendsAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,14 @@ def main():
         # Step 9: Send email brief (if enabled)
         if Config.SEND_EMAIL_BRIEF:
             logger.info("Step 9: Sending email brief")
-            email_sender = EmailSender()
+
+            # Use enhanced email if enabled
+            if Config.USE_ENHANCED_EMAIL:
+                email_sender = EmailSenderEnhanced()
+                logger.info("Using enhanced email with Morning Insight and Quick Actions")
+            else:
+                email_sender = EmailSender()
+
             email_sent = email_sender.send_daily_brief(brief_path, ranked_tasks)
             if email_sent:
                 logger.info(f"Email brief sent to {Config.EMAIL_TO}")
@@ -129,12 +137,34 @@ def main():
                 logger.info("Step 10: Generating weekly analytics report")
                 trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR)
                 weekly_report = trends_analyzer.generate_weekly_report(weeks_back=0)
+                analytics = trends_analyzer.analyze_week(weeks_back=0)
 
                 weekly_report_path = Config.OUTPUT_DIR / f"weekly_report_{today.strftime('%Y-%m-%d')}.md"
                 weekly_report_path.write_text(weekly_report, encoding='utf-8')
 
                 logger.info(f"Weekly report saved to: {weekly_report_path}")
                 print(f"\n📊 Weekly analytics report generated: {weekly_report_path}")
+
+                # Send weekly digest email if enabled
+                if Config.SEND_WEEKLY_DIGEST and Config.SEND_EMAIL_BRIEF:
+                    logger.info("Sending weekly digest email")
+                    email_sender = EmailSenderEnhanced()
+
+                    # Prepare week stats for email
+                    week_stats = {
+                        "week_start": analytics.get("week_start", ""),
+                        "week_end": analytics.get("week_end", ""),
+                        "total_tasks": analytics.get("task_stats", {}).get("total_tasks_tracked", 0),
+                        "net_change": analytics.get("completion_insights", {}).get("net_tasks_added", 0),
+                        "avg_priority": analytics.get("priority_distribution", {}).get("avg_priority", 0),
+                    }
+
+                    digest_sent = email_sender.send_weekly_digest(str(weekly_report_path), week_stats)
+                    if digest_sent:
+                        logger.info(f"Weekly digest emailed to {Config.EMAIL_TO}")
+                        print(f"📧 Weekly digest emailed to {Config.EMAIL_TO}")
+                    else:
+                        logger.warning("Failed to send weekly digest email")
             else:
                 logger.info(f"Step 10: Skipping weekly report (generated on {Config.WEEKLY_REPORT_DAY}s)")
         else:

@@ -39,9 +39,12 @@ class Config:
     OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "output"))
     ENABLE_TASK_UPDATES = os.getenv("ENABLE_TASK_UPDATES", "false").lower() == "true"
     GENERATE_MARKDOWN_BRIEF = os.getenv("GENERATE_MARKDOWN_BRIEF", "true").lower() == "true"
+    SHOW_PRIORITY_SCORES_IN_TASKS = os.getenv("SHOW_PRIORITY_SCORES_IN_TASKS", "false").lower() == "true"
 
     # Email Configuration
     SEND_EMAIL_BRIEF = os.getenv("SEND_EMAIL_BRIEF", "false").lower() == "true"
+    USE_ENHANCED_EMAIL = os.getenv("USE_ENHANCED_EMAIL", "true").lower() == "true"
+    SEND_WEEKLY_DIGEST = os.getenv("SEND_WEEKLY_DIGEST", "false").lower() == "true"
     EMAIL_FROM = os.getenv("EMAIL_FROM")
     EMAIL_TO = os.getenv("EMAIL_TO")
     EMAIL_SMTP_SERVER = os.getenv("EMAIL_SMTP_SERVER", "smtp.gmail.com")
