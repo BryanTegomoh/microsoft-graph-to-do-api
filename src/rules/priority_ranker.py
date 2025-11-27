@@ -164,11 +164,15 @@ class PriorityRanker:
 
         # Base category scores
         category_scores = {
-            "urgent": 90,
+            "urgent": 95,
+            "apply": 85,
+            "contact": 80,
             "important": 80,
+            "review": 65,
             "planning": 60,
-            "research": 50,
+            "research": 55,
             "reading": 40,
+            "watch": 35,
             "routine": 30,
             "other": 50,
         }

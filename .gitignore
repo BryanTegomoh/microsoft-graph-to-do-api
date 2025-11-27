@@ -39,13 +39,15 @@ token.json
 token_cache.json
 client_secret*.json
 
-# Output (keep documentation)
+# Output and generated files
 output/
 reports/
 task_manager.log
 
-# Documentation (local only - not for public repo)
+# Documentation - all .md files are local/generated, not tracked in git
 docs/
+*.md
+!README.md
 
 # Personal automation scripts and configs (keep local)
 run_daily.bat
@@ -69,6 +71,3 @@ test_email.py
 coverage/
 .tox/
 .python-version
-
-# Comprehensive build documentation (private - keep local)
-COMPLETE_BUILD_GUIDE.md

@@ -66,15 +66,29 @@ Status: {task_data.get('status', 'notStarted')}
             prompt += f"\n\nLinked Content:\n{truncated_content}\n"
 
         prompt += """
-Please analyze this task and provide the following in valid JSON format:
+Please analyze this task and provide the following in valid JSON format.
+
+IMPORTANT: Look for tags in the task title like [APPLY], [READ], [WATCH], [RESEARCH], [URGENT], [CONTACT], [REVIEW], etc. Use these to help determine category and priority.
+
+Category guidelines:
+- "apply" = job applications, researcher positions, fellowship apps (HIGH priority, time-sensitive)
+- "contact" = reaching out to people, networking, co-founder search (HIGH priority)
+- "urgent" = anything marked urgent or time-sensitive (HIGHEST priority)
+- "review" = reviewing documents, papers, frameworks (MEDIUM priority)
+- "research" = deep research tasks, exploring topics (MEDIUM priority)
+- "reading" = articles, papers, content to read (LOWER priority unless time-sensitive)
+- "watch" = videos, webinars, tutorials (LOWER priority)
+- "planning" = strategy, planning tasks (MEDIUM priority)
+- "routine" = regular maintenance tasks (LOW priority)
+- "other" = doesn't fit above categories
 
 {
   "summary": "One-sentence summary of what this task is about",
-  "priority_score": <number 0-100, where 100 is highest priority>,
+  "priority_score": <number 0-100, where 100 is highest priority. Applications and contact tasks should score 70+, urgent items 85+>,
   "priority_reasoning": "Brief explanation of the priority score",
   "estimated_time_minutes": <estimated time to complete in minutes>,
   "tags": ["topic1", "topic2", "topic3"],
-  "category": "one of: urgent, important, routine, research, reading, planning, other",
+  "category": "one of: apply, contact, urgent, review, research, reading, watch, planning, routine, other",
   "urgency_level": "one of: critical, high, medium, low",
   "suggested_action": "Next action to take (imperative form)",
   "key_insights": ["insight1", "insight2", "insight3"],

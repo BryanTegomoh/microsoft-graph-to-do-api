@@ -13,6 +13,7 @@ from src.rules.priority_ranker import PriorityRanker
 from src.writers.brief_generator import BriefGenerator
 from src.writers.task_updater import TaskUpdater
 from src.writers.email_sender import EmailSender
+from src.analytics.weekly_trends import WeeklyTrendsAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,28 @@ def main():
                 print("\n⚠️ Failed to send email brief - check logs")
         else:
             logger.info("Step 9: Email notifications disabled (set SEND_EMAIL_BRIEF=true to enable)")
+
+        # Step 10: Generate weekly analytics (if enabled and appropriate day)
+        if Config.GENERATE_WEEKLY_REPORT:
+            from datetime import datetime
+            today = datetime.now()
+            is_report_day = Config.WEEKLY_REPORT_DAY == today.strftime("%A").lower()
+
+            # Always generate on Sundays, or force generate if it's been a week
+            if is_report_day or today.weekday() == 6:  # 6 = Sunday
+                logger.info("Step 10: Generating weekly analytics report")
+                trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR)
+                weekly_report = trends_analyzer.generate_weekly_report(weeks_back=0)
+
+                weekly_report_path = Config.OUTPUT_DIR / f"weekly_report_{today.strftime('%Y-%m-%d')}.md"
+                weekly_report_path.write_text(weekly_report, encoding='utf-8')
+
+                logger.info(f"Weekly report saved to: {weekly_report_path}")
+                print(f"\n📊 Weekly analytics report generated: {weekly_report_path}")
+            else:
+                logger.info(f"Step 10: Skipping weekly report (generated on {Config.WEEKLY_REPORT_DAY}s)")
+        else:
+            logger.info("Step 10: Weekly analytics disabled (set GENERATE_WEEKLY_REPORT=true to enable)")
 
         # Summary
         logger.info("=== Execution Complete ===")

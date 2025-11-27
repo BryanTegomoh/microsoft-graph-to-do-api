@@ -12,6 +12,7 @@ This tool connects Microsoft To Do with AI (Claude, GPT-4, Gemini, or Grok) to a
 4. Ranks tasks using weighted scoring: 40% AI analysis, 25% deadline urgency, 15% recency, 10% importance flags, 10% category
 5. Generates a daily markdown brief organized into "Focus Today" (priority ≥80), "This Week" (≥60), and "Later"
 6. Optionally emails you the brief and updates importance flags back in Microsoft To Do
+7. **NEW:** Weekly analytics that analyze your daily briefs to identify trends, themes, and completion patterns
 
 Currently processing ~58 tasks across 3 lists. Turns out most of mine end up in the "Later" bucket - this is more of a research reading list than an urgent task manager for me.
 
@@ -81,6 +82,10 @@ EMAIL_PASSWORD=your_app_password
 
 # Optional: Update task priorities in To Do
 ENABLE_TASK_UPDATES=false  # Conservative default - won't mess with your tasks
+
+# Optional: Weekly analytics (enabled by default)
+GENERATE_WEEKLY_REPORT=true
+WEEKLY_REPORT_DAY=sunday
 ```
 
 ### Run
@@ -144,6 +149,8 @@ Switching providers is just changing `AI_PROVIDER` in your .env.
 
 **Email Briefs**: HTML emails with priority badges. Spent way too much time on the styling tbh.
 
+**Weekly Analytics**: Automatically analyzes your daily briefs to track trends, identify recurring themes, and measure completion patterns. See [WEEKLY_ANALYTICS.md](docs/WEEKLY_ANALYTICS.md) for details.
+
 ## Automation
 
 This is built to run daily. I use Windows Task Scheduler:
@@ -176,6 +183,7 @@ Helps me triage whats worth reading vs what can wait. If you use To Do for actua
 
 ```
 src/
+├── analytics/  # Weekly trends and pattern analysis
 ├── auth/       # Microsoft Graph device code authentication
 ├── graph/      # To Do API client (fetch tasks, update priorities)
 ├── fetch/      # URL content extraction (BeautifulSoup + requests)
@@ -187,7 +195,24 @@ src/
 
 ## Config Options
 
-Check `.env.example` for the full list. Main ones are `AI_PROVIDER`, `ENABLE_TASK_UPDATES`, `SEND_EMAIL_BRIEF`.
+Check `.env.example` for the full list. Main ones are `AI_PROVIDER`, `ENABLE_TASK_UPDATES`, `SEND_EMAIL_BRIEF`, `GENERATE_WEEKLY_REPORT`.
+
+## Additional Tools
+
+**Weekly Analytics Report**: Generate on-demand analytics for any week:
+
+```bash
+# Current week
+python generate_weekly_report.py
+
+# Last week
+python generate_weekly_report.py 1
+
+# 2 weeks ago
+python generate_weekly_report.py 2
+```
+
+See [docs/WEEKLY_ANALYTICS.md](docs/WEEKLY_ANALYTICS.md) for details on themes tracked, insights generated, and customization options.
 
 ## License
 

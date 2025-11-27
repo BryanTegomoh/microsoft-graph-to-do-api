@@ -48,6 +48,10 @@ class Config:
     EMAIL_SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT", "587"))
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
+    # Weekly Analytics Configuration
+    GENERATE_WEEKLY_REPORT = os.getenv("GENERATE_WEEKLY_REPORT", "true").lower() == "true"
+    WEEKLY_REPORT_DAY = os.getenv("WEEKLY_REPORT_DAY", "sunday").lower()  # Day to generate weekly report
+
     # Graph API Endpoints
     GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
     GRAPH_TODO_LISTS_ENDPOINT = f"{GRAPH_API_BASE}/me/todo/lists"
