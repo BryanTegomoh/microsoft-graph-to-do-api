@@ -119,10 +119,10 @@ def main():
             email_sent = email_sender.send_daily_brief(brief_path, ranked_tasks)
             if email_sent:
                 logger.info(f"Email brief sent to {Config.EMAIL_TO}")
-                print(f"\n✅ Email brief sent to {Config.EMAIL_TO}")
+                print(f"\n[SUCCESS] Email brief sent to {Config.EMAIL_TO}")
             else:
                 logger.warning("Failed to send email brief")
-                print("\n⚠️ Failed to send email brief - check logs")
+                print("\n[WARNING] Failed to send email brief - check logs")
         else:
             logger.info("Step 9: Email notifications disabled (set SEND_EMAIL_BRIEF=true to enable)")
 
@@ -143,7 +143,7 @@ def main():
                 weekly_report_path.write_text(weekly_report, encoding='utf-8')
 
                 logger.info(f"Weekly report saved to: {weekly_report_path}")
-                print(f"\n📊 Weekly analytics report generated: {weekly_report_path}")
+                print(f"\n[ANALYTICS] Weekly report generated: {weekly_report_path}")
 
                 # Send weekly digest email if enabled
                 if Config.SEND_WEEKLY_DIGEST and Config.SEND_EMAIL_BRIEF:
@@ -162,7 +162,7 @@ def main():
                     digest_sent = email_sender.send_weekly_digest(str(weekly_report_path), week_stats)
                     if digest_sent:
                         logger.info(f"Weekly digest emailed to {Config.EMAIL_TO}")
-                        print(f"📧 Weekly digest emailed to {Config.EMAIL_TO}")
+                        print(f"[EMAIL] Weekly digest sent to {Config.EMAIL_TO}")
                     else:
                         logger.warning("Failed to send weekly digest email")
             else:
