@@ -2,11 +2,11 @@
 
 I built this because my To Do list was out of control.
 
-Every article about AI in healthcare, every research paper, every "read later" link - it all went into Microsoft To Do. And then just sat there. Hundreds of tasks, no idea what actually mattered.
+Every article, every research paper, every "read later" link, it all went into Microsoft To Do. And then just sat there. Hundreds of tasks, no idea what actually mattered.
 
-So I built something to fix it. This connects To Do with AI (Claude, GPT-4, Gemini, or Grok) to analyze everything and tell me what to focus on. Runs automatically every morning and emails me a prioritized brief.
+So I built something to fix it. This connects To Do with AI (Claude, GPT-4, Gemini, or Grok) to analyze everything and tell me what to focus on. **Runs automatically every morning and emails me a prioritized brief.**
 
-Been using it daily since November 2025.
+Been using it daily, and wanted to make it open source for busy professionals. 
 
 ## How It Works
 
@@ -24,10 +24,10 @@ That's it. No more staring at an overwhelming task list wondering where to start
 I'm researching AI in healthcare, so my To Do is full of:
 - Research papers and clinical studies
 - Healthcare AI articles and benchmarks
-- Career stuff (tech to healthcare transition)
+- Career stuff 
 - Random interesting things I want to read later
 
-This helps me figure out what's actually worth my time vs what can wait. If you use To Do for actual urgent work tasks, your mileage may vary - mine is basically a curated reading list.
+This helps me figure out what's actually worth my time vs what can wait. If you use To Do for actual urgent work tasks, your mileage may vary, mine is basically a curated reading list.
 
 ## Quick Start
 
@@ -71,7 +71,7 @@ Research backlog, articles to explore when I have time...
 
 ## Automation
 
-I run this daily at 6 AM via Windows Task Scheduler. It generates the brief and emails it to me before I'm even awake.
+I run this daily at 6 AM via Windows Task Scheduler. It generates the brief and emails it to me when I'm back from my morning workout. 
 
 Works with cron on Linux/Mac too - just schedule `python main.py`.
 
