@@ -4,7 +4,7 @@ I built this because my To Do list was out of control.
 
 Every article, every research paper, every "read later" link, it all went into Microsoft To Do. And then just sat there. Hundreds of tasks, no idea what actually mattered.
 
-So I built something to fix it. This connects To Do with AI (Claude, GPT-4, Gemini, or Grok) to analyze everything and tell me what to focus on. **Runs automatically every morning and emails me a prioritized brief.**
+So I built something to fix it. This connects To Do with AI (Claude, GPT-4, Gemini, or Grok) to analyze everything and tell me what to focus on. **Runs automatically 3x daily and emails me a prioritized brief.**
 
 Been using it daily, and wanted to make it open source for busy professionals. 
 
@@ -71,7 +71,7 @@ Research backlog, articles to explore when I have time...
 
 ## Automation
 
-I run this daily at 6 AM via Windows Task Scheduler. It generates the brief and emails it to me when I'm back from my morning workout. 
+I run this 3x daily via Windows Task Scheduler - 8 AM, 2 PM, and 8 PM. Morning brief hits my inbox when I'm back from my workout, afternoon keeps me on track, and evening helps me wind down with what's next.
 
 Works with cron on Linux/Mac too - just schedule `python main.py`.
 

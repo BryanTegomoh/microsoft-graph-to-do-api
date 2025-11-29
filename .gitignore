@@ -52,7 +52,7 @@ docs/
 # Personal automation scripts and configs (keep local)
 run_daily.bat
 setup_automation.bat
-setup_automation_twice_daily.bat
+setup_automation_3x_daily.bat
 test_config.py
 test_email.py
 .github/workflows/
