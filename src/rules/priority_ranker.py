@@ -19,12 +19,13 @@ class PriorityRanker:
             weights: Custom weights for ranking factors.
         """
         # Default weights (must sum to 1.0)
+        # Optimized for research/reading list use case with few deadlines
         self.weights = weights or {
-            "ai_priority": 0.40,      # AI-suggested priority
-            "deadline_urgency": 0.25,  # Based on due date
-            "recency": 0.15,           # How recently created
-            "importance": 0.10,        # User-set importance
-            "category": 0.10,          # Task category weight
+            "ai_priority": 0.50,      # AI-suggested priority (dominant factor)
+            "deadline_urgency": 0.10,  # Based on due date (low - rarely set)
+            "recency": 0.20,           # How recently created (newer = more relevant)
+            "importance": 0.15,        # User-set importance (manual control)
+            "category": 0.05,          # Task category weight (minimal)
         }
 
         # Validate weights
