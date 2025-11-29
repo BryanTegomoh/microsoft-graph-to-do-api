@@ -48,7 +48,7 @@ class ToDoClient:
 
     def get_tasks(self, list_id: str, filter_query: Optional[str] = None) -> List[Dict]:
         """
-        Get tasks from a specific list.
+        Get tasks from a specific list (handles pagination).
 
         Args:
             list_id: The ID of the task list.
@@ -59,17 +59,27 @@ class ToDoClient:
         """
         url = f"{self.base_url}/me/todo/lists/{list_id}/tasks"
 
-        params = {}
+        params = {"$top": 100}  # Request max per page
         if filter_query:
             params["$filter"] = filter_query
 
+        all_tasks = []
         logger.info(f"Fetching tasks from list {list_id}")
-        response = requests.get(url, headers=self.headers, params=params)
-        response.raise_for_status()
 
-        tasks = response.json().get("value", [])
-        logger.info(f"Found {len(tasks)} tasks")
-        return tasks
+        while url:
+            response = requests.get(url, headers=self.headers, params=params)
+            response.raise_for_status()
+
+            data = response.json()
+            tasks = data.get("value", [])
+            all_tasks.extend(tasks)
+
+            # Check for next page
+            url = data.get("@odata.nextLink")
+            params = {}  # nextLink includes params
+
+        logger.info(f"Found {len(all_tasks)} tasks")
+        return all_tasks
 
     def get_all_tasks(self, include_completed: bool = False) -> List[Dict]:
         """
@@ -165,6 +175,30 @@ class ToDoClient:
         response.raise_for_status()
 
         return response.json()
+
+    def delete_task(self, list_id: str, task_id: str) -> bool:
+        """
+        Delete a task.
+
+        Args:
+            list_id: The ID of the task list.
+            task_id: The ID of the task to delete.
+
+        Returns:
+            True if deletion was successful, False otherwise.
+        """
+        url = f"{self.base_url}/me/todo/lists/{list_id}/tasks/{task_id}"
+
+        logger.info(f"Deleting task {task_id} from list {list_id}")
+        response = requests.delete(url, headers=self.headers)
+
+        if response.status_code == 204:
+            logger.info(f"Successfully deleted task {task_id}")
+            return True
+        else:
+            logger.error(f"Failed to delete task {task_id}: {response.status_code}")
+            response.raise_for_status()
+            return False
 
     def extract_urls_from_task(self, task: Dict) -> List[str]:
         """

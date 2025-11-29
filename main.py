@@ -3,6 +3,8 @@
 import logging
 import sys
 from pathlib import Path
+from collections import defaultdict
+from urllib.parse import urlparse, parse_qs, urlencode
 
 from src.config import Config
 from src.utils.logging_config import setup_logging
@@ -17,6 +19,60 @@ from src.writers.email_sender_enhanced import EmailSenderEnhanced
 from src.analytics.weekly_trends import WeeklyTrendsAnalyzer
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_url(url: str) -> str:
+    """Normalize URL for duplicate comparison."""
+    url = url.lower().strip()
+    parsed = urlparse(url)
+    netloc = parsed.netloc
+    if netloc.startswith('www.'):
+        netloc = netloc[4:]
+    tracking_params = {'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+                       'fbclid', 'gclid', 'ref', 's', 't', 'si', 'igshid'}
+    query_params = parse_qs(parsed.query)
+    filtered_params = {k: v for k, v in query_params.items() if k.lower() not in tracking_params}
+    clean_query = urlencode(filtered_params, doseq=True) if filtered_params else ''
+    path = parsed.path.rstrip('/')
+    if clean_query:
+        return f'{parsed.scheme}://{netloc}{path}?{clean_query}'
+    return f'{parsed.scheme}://{netloc}{path}'
+
+
+def remove_duplicate_urls(todo_client: ToDoClient, parsed_tasks: list) -> int:
+    """
+    Remove duplicate URL tasks, keeping the newest copy.
+
+    Returns:
+        Number of duplicates removed.
+    """
+    url_to_tasks = defaultdict(list)
+
+    for task in parsed_tasks:
+        for url in task.get('urls', []):
+            normalized = normalize_url(url)
+            url_to_tasks[normalized].append(task)
+
+    # Filter to duplicates only
+    duplicates = {url: items for url, items in url_to_tasks.items() if len(items) > 1}
+
+    if not duplicates:
+        return 0
+
+    deleted = 0
+    for url, items in duplicates.items():
+        # Sort by created date (newest first), keep first, delete rest
+        sorted_items = sorted(items, key=lambda x: x.get('created_at', '') or '', reverse=True)
+        for item in sorted_items[1:]:
+            try:
+                success = todo_client.delete_task(item['list_id'], item['id'])
+                if success:
+                    deleted += 1
+                    logger.info(f"Deleted duplicate: {item['title'][:50]}")
+            except Exception as e:
+                logger.warning(f"Failed to delete duplicate {item['id']}: {e}")
+
+    return deleted
 
 
 def main():
@@ -51,6 +107,22 @@ def main():
         for task in tasks:
             parsed = todo_client.parse_task_metadata(task)
             parsed_tasks.append(parsed)
+
+        # Step 2.5: Remove duplicate URLs (if enabled)
+        if Config.AUTO_REMOVE_DUPLICATES:
+            logger.info("Step 2.5: Checking for duplicate URLs")
+            duplicates_removed = remove_duplicate_urls(todo_client, parsed_tasks)
+            if duplicates_removed > 0:
+                logger.info(f"Removed {duplicates_removed} duplicate URL tasks")
+                print(f"\n[CLEANUP] Removed {duplicates_removed} duplicate URL tasks")
+                # Re-fetch tasks after cleanup
+                tasks = todo_client.get_all_tasks(include_completed=False)
+                parsed_tasks = [todo_client.parse_task_metadata(t) for t in tasks]
+                logger.info(f"Tasks after cleanup: {len(tasks)}")
+            else:
+                logger.info("No duplicate URLs found")
+        else:
+            logger.info("Step 2.5: Auto-remove duplicates disabled (set AUTO_REMOVE_DUPLICATES=true to enable)")
 
         # Step 3: Fetch web content for tasks with URLs
         logger.info("Step 3: Fetching web content for URLs")

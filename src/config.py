@@ -40,6 +40,7 @@ class Config:
     ENABLE_TASK_UPDATES = os.getenv("ENABLE_TASK_UPDATES", "false").lower() == "true"
     GENERATE_MARKDOWN_BRIEF = os.getenv("GENERATE_MARKDOWN_BRIEF", "true").lower() == "true"
     SHOW_PRIORITY_SCORES_IN_TASKS = os.getenv("SHOW_PRIORITY_SCORES_IN_TASKS", "false").lower() == "true"
+    AUTO_REMOVE_DUPLICATES = os.getenv("AUTO_REMOVE_DUPLICATES", "true").lower() == "true"
 
     # Email Configuration
     SEND_EMAIL_BRIEF = os.getenv("SEND_EMAIL_BRIEF", "false").lower() == "true"
