@@ -17,6 +17,7 @@ from src.writers.task_updater import TaskUpdater
 from src.writers.email_sender import EmailSender
 from src.writers.email_sender_enhanced import EmailSenderEnhanced
 from src.analytics.weekly_trends import WeeklyTrendsAnalyzer
+from src.cache.analysis_cache import AnalysisCache
 
 logger = logging.getLogger(__name__)
 
@@ -124,34 +125,80 @@ def main():
         else:
             logger.info("Step 2.5: Auto-remove duplicates disabled (set AUTO_REMOVE_DUPLICATES=true to enable)")
 
-        # Step 3: Fetch web content for tasks with URLs
+        # Step 3: Fetch web content for tasks with URLs (skip if cached)
         logger.info("Step 3: Fetching web content for URLs")
         content_extractor = ContentExtractor()
         task_contents = {}
 
+        # Initialize cache early to check which tasks need URL fetching
+        analysis_cache = AnalysisCache(Config.OUTPUT_DIR / "cache")
+
+        urls_fetched = 0
+        urls_skipped = 0
+
         for task in parsed_tasks:
+            task_id = task["id"]
+            task_title = task.get("title", "")
             urls = task.get("urls", [])
+
             if urls:
+                # Check if we already have cached analysis for this task
+                if analysis_cache.get(task_id, task_title, urls):
+                    urls_skipped += 1
+                    continue  # Skip URL fetch - we'll use cached analysis
+
                 # Fetch first URL only (to avoid rate limits)
                 url = urls[0]
                 logger.info(f"Fetching content for: {url}")
                 content_data = content_extractor.fetch_url(url)
                 if content_data:
-                    task_contents[task["id"]] = content_data.get("content", "")
+                    task_contents[task_id] = content_data.get("content", "")
+                urls_fetched += 1
 
-        # Step 4: Analyze tasks with AI
+        logger.info(f"URL fetching: {urls_fetched} fetched, {urls_skipped} skipped (cached)")
+        if urls_skipped > 0:
+            print(f"[CACHE] Skipped {urls_skipped} URL fetches (already analyzed)")
+
+        # Step 4: Analyze tasks with AI (with caching)
         logger.info("Step 4: Analyzing tasks with AI")
         analyzer = TaskAnalyzer()
+        # analysis_cache already initialized in Step 3
         tasks_with_analysis = []
 
+        # Clean up cache for completed/deleted tasks
+        active_task_ids = {task["id"] for task in parsed_tasks}
+        analysis_cache.cleanup_completed(active_task_ids)
+
+        cache_hits = 0
+        cache_misses = 0
+
         for task in parsed_tasks:
-            content = task_contents.get(task["id"])
-            analysis = analyzer.analyze_task(task, content)
+            task_id = task["id"]
+            task_title = task.get("title", "")
+            urls = task.get("urls", [])
+
+            # Check cache first
+            cached_analysis = analysis_cache.get(task_id, task_title, urls)
+
+            if cached_analysis:
+                # Use cached analysis
+                analysis = cached_analysis
+                cache_hits += 1
+            else:
+                # Need to analyze - fetch content if needed
+                content = task_contents.get(task_id)
+                analysis = analyzer.analyze_task(task, content)
+                # Cache the result
+                analysis_cache.set(task_id, task_title, urls, analysis)
+                cache_misses += 1
 
             tasks_with_analysis.append({
                 "task": task,
                 "analysis": analysis
             })
+
+        logger.info(f"Analysis cache: {cache_hits} hits, {cache_misses} new analyses")
+        print(f"\n[CACHE] {cache_hits} cached, {cache_misses} new analyses")
 
         # Step 5: Rank and prioritize tasks
         logger.info("Step 5: Ranking tasks by priority")
@@ -207,7 +254,8 @@ def main():
             # Always generate on Sundays, or force generate if it's been a week
             if is_report_day or today.weekday() == 6:  # 6 = Sunday
                 logger.info("Step 10: Generating weekly analytics report")
-                trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR)
+                # Pass parsed_tasks for live analysis (stale tasks, URL domains, list breakdown)
+                trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR, tasks=parsed_tasks)
                 weekly_report = trends_analyzer.generate_weekly_report(weeks_back=0)
                 analytics = trends_analyzer.analyze_week(weeks_back=0)
 
@@ -222,13 +270,20 @@ def main():
                     logger.info("Sending weekly digest email")
                     email_sender = EmailSenderEnhanced()
 
-                    # Prepare week stats for email
+                    # Prepare week stats for email (including all enhanced analytics)
                     week_stats = {
                         "week_start": analytics.get("week_start", ""),
                         "week_end": analytics.get("week_end", ""),
                         "total_tasks": analytics.get("task_stats", {}).get("total_tasks_tracked", 0),
                         "net_change": analytics.get("completion_insights", {}).get("net_tasks_added", 0),
                         "avg_priority": analytics.get("priority_distribution", {}).get("avg_priority", 0),
+                        # Enhanced analytics for rich email formatting
+                        "stale_count": analytics.get("stale_tasks", {}).get("stale_count", 0),
+                        "stale_tasks": analytics.get("stale_tasks", {}).get("stale_tasks", []),
+                        "velocity": analytics.get("velocity", {}),
+                        "url_domains": analytics.get("url_domains", {}),
+                        "list_breakdown": analytics.get("list_breakdown", {}),
+                        "recommendations": analytics.get("recommendations", []),
                     }
 
                     digest_sent = email_sender.send_weekly_digest(str(weekly_report_path), week_stats)

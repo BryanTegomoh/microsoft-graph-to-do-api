@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from collections import Counter, defaultdict
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -13,14 +14,16 @@ logger = logging.getLogger(__name__)
 class WeeklyTrendsAnalyzer:
     """Analyzes weekly patterns and trends from daily briefs."""
 
-    def __init__(self, output_dir: Path):
+    def __init__(self, output_dir: Path, tasks: List[Dict] = None):
         """
         Initialize the weekly trends analyzer.
 
         Args:
             output_dir: Directory containing daily brief markdown files.
+            tasks: Optional list of current tasks for live analysis.
         """
         self.output_dir = Path(output_dir)
+        self.tasks = tasks or []
 
     def analyze_week(self, weeks_back: int = 0) -> Dict:
         """
@@ -303,6 +306,288 @@ class WeeklyTrendsAnalyzer:
             "daily_breakdown": [],
         }
 
+    def _analyze_stale_tasks(self, days_threshold: int = 30) -> Dict:
+        """
+        Identify tasks that haven't been touched in X days.
+
+        Args:
+            days_threshold: Number of days to consider a task stale.
+
+        Returns:
+            Dictionary with stale task analysis.
+        """
+        if not self.tasks:
+            return {"stale_count": 0, "stale_tasks": [], "oldest_task": None}
+
+        now = datetime.now()
+        stale_tasks = []
+
+        for task in self.tasks:
+            created_at = task.get("created_at")
+            if created_at:
+                try:
+                    # Parse ISO format date
+                    if isinstance(created_at, str):
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        created_date = created_date.replace(tzinfo=None)  # Make naive for comparison
+                    else:
+                        created_date = created_at
+
+                    age_days = (now - created_date).days
+                    if age_days >= days_threshold:
+                        stale_tasks.append({
+                            "title": task.get("title", "Unknown")[:80],
+                            "age_days": age_days,
+                            "list_name": task.get("list_name", "Unknown"),
+                            "id": task.get("id"),
+                        })
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Error parsing date for task: {e}")
+
+        # Sort by age (oldest first)
+        stale_tasks.sort(key=lambda x: x["age_days"], reverse=True)
+
+        return {
+            "stale_count": len(stale_tasks),
+            "stale_tasks": stale_tasks[:10],  # Top 10 oldest
+            "oldest_task": stale_tasks[0] if stale_tasks else None,
+            "avg_age_days": round(sum(t["age_days"] for t in stale_tasks) / len(stale_tasks), 1) if stale_tasks else 0,
+        }
+
+    def _analyze_url_domains(self) -> Dict:
+        """
+        Analyze which domains/sources tasks come from.
+
+        Returns:
+            Dictionary with domain frequency analysis.
+        """
+        if not self.tasks:
+            return {"domain_counts": {}, "top_domains": [], "total_urls": 0}
+
+        domain_counts = Counter()
+
+        for task in self.tasks:
+            urls = task.get("urls", [])
+            for url in urls:
+                try:
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.lower()
+                    # Clean up common prefixes
+                    if domain.startswith("www."):
+                        domain = domain[4:]
+                    if domain:
+                        domain_counts[domain] += 1
+                except Exception:
+                    pass
+
+        top_domains = domain_counts.most_common(10)
+
+        return {
+            "domain_counts": dict(domain_counts),
+            "top_domains": [{"domain": d, "count": c} for d, c in top_domains],
+            "total_urls": sum(domain_counts.values()),
+            "unique_domains": len(domain_counts),
+        }
+
+    def _analyze_lists(self) -> Dict:
+        """
+        Analyze task distribution across To Do lists.
+
+        Returns:
+            Dictionary with list-by-list breakdown.
+        """
+        if not self.tasks:
+            return {"list_counts": {}, "top_lists": [], "total_lists": 0}
+
+        list_counts = Counter()
+
+        for task in self.tasks:
+            list_name = task.get("list_name", "Unknown")
+            list_counts[list_name] += 1
+
+        sorted_lists = list_counts.most_common()
+
+        return {
+            "list_counts": dict(list_counts),
+            "top_lists": [{"list": name, "count": count} for name, count in sorted_lists[:10]],
+            "total_lists": len(list_counts),
+            "largest_list": sorted_lists[0] if sorted_lists else ("None", 0),
+        }
+
+    def _calculate_velocity(self, briefs: List[Dict]) -> Dict:
+        """
+        Calculate task completion velocity and backlog projections.
+
+        Returns:
+            Dictionary with velocity metrics.
+        """
+        if len(briefs) < 2:
+            return {
+                "avg_daily_change": 0,
+                "completion_rate": 0,
+                "days_to_clear": None,
+                "trend_direction": "unknown"
+            }
+
+        # Track daily changes
+        daily_changes = []
+        prev_total = None
+
+        for brief in briefs:
+            total = self._extract_total_tasks(brief["content"])
+            if prev_total is not None:
+                daily_changes.append(total - prev_total)
+            prev_total = total
+
+        if not daily_changes:
+            return {
+                "avg_daily_change": 0,
+                "completion_rate": 0,
+                "days_to_clear": None,
+                "trend_direction": "unknown"
+            }
+
+        avg_change = sum(daily_changes) / len(daily_changes)
+
+        # Calculate completion rate (negative change = completion)
+        completions = [c for c in daily_changes if c < 0]
+        avg_completion = abs(sum(completions) / len(completions)) if completions else 0
+
+        # Project days to clear backlog
+        current_total = prev_total or 0
+        days_to_clear = None
+        if avg_change < 0 and current_total > 0:
+            days_to_clear = round(current_total / abs(avg_change))
+
+        return {
+            "avg_daily_change": round(avg_change, 1),
+            "completion_rate": round(avg_completion, 1),
+            "days_to_clear": days_to_clear,
+            "trend_direction": "decreasing" if avg_change < -0.5 else "increasing" if avg_change > 0.5 else "stable",
+            "current_backlog": current_total,
+        }
+
+    def _compare_themes_to_last_week(self, current_themes: Dict) -> Dict:
+        """
+        Compare this week's themes to last week.
+
+        Returns:
+            Dictionary showing theme changes.
+        """
+        # Get last week's briefs
+        today = datetime.now()
+        last_week_start = today - timedelta(days=today.weekday() + 7)
+        last_week_end = last_week_start + timedelta(days=6)
+
+        last_week_briefs = self._get_briefs_in_range(last_week_start, last_week_end)
+
+        if not last_week_briefs:
+            return {"comparison_available": False, "changes": []}
+
+        last_week_themes = self._extract_themes(last_week_briefs)
+
+        # Compare theme counts
+        current_counts = {t["theme"]: t["count"] for t in current_themes.get("top_themes", [])}
+        last_counts = {t["theme"]: t["count"] for t in last_week_themes.get("top_themes", [])}
+
+        all_themes = set(current_counts.keys()) | set(last_counts.keys())
+
+        changes = []
+        for theme in all_themes:
+            current = current_counts.get(theme, 0)
+            last = last_counts.get(theme, 0)
+            change = current - last
+            if change != 0:
+                changes.append({
+                    "theme": theme,
+                    "this_week": current,
+                    "last_week": last,
+                    "change": change,
+                    "direction": "up" if change > 0 else "down"
+                })
+
+        # Sort by absolute change
+        changes.sort(key=lambda x: abs(x["change"]), reverse=True)
+
+        return {
+            "comparison_available": True,
+            "changes": changes[:5],  # Top 5 changes
+            "trending_up": [c for c in changes if c["direction"] == "up"][:3],
+            "trending_down": [c for c in changes if c["direction"] == "down"][:3],
+        }
+
+    def _generate_action_recommendations(self, analytics: Dict) -> List[Dict]:
+        """
+        Generate specific actionable recommendations.
+
+        Returns:
+            List of recommendation dictionaries.
+        """
+        recommendations = []
+
+        # Stale tasks recommendation
+        stale = analytics.get("stale_tasks", {})
+        if stale.get("stale_count", 0) > 5:
+            oldest = stale.get("stale_tasks", [])[:3]
+            titles = [t["title"][:40] + "..." if len(t["title"]) > 40 else t["title"] for t in oldest]
+            recommendations.append({
+                "type": "cleanup",
+                "priority": "medium",
+                "action": f"Review {stale['stale_count']} stale tasks (30+ days old)",
+                "details": f"Oldest: {', '.join(titles)}",
+                "impact": "Reduce cognitive load and keep list relevant"
+            })
+
+        # High priority overload
+        priority = analytics.get("priority_distribution", {})
+        high_count = priority.get("high_priority_count", 0)
+        if high_count > 10:
+            recommendations.append({
+                "type": "prioritization",
+                "priority": "high",
+                "action": f"Re-evaluate {high_count} high-priority tasks",
+                "details": "Too many urgent items dilutes focus",
+                "impact": "Better focus on truly critical items"
+            })
+
+        # Backlog growth
+        velocity = analytics.get("velocity", {})
+        if velocity.get("avg_daily_change", 0) > 3:
+            recommendations.append({
+                "type": "intake",
+                "priority": "medium",
+                "action": "Slow down task intake or increase completion rate",
+                "details": f"Adding ~{velocity['avg_daily_change']:.1f} tasks/day net",
+                "impact": "Prevent backlog from growing unmanageable"
+            })
+
+        # Domain concentration
+        domains = analytics.get("url_domains", {})
+        top_domains = domains.get("top_domains", [])
+        if top_domains and top_domains[0]["count"] > 20:
+            top = top_domains[0]
+            recommendations.append({
+                "type": "research",
+                "priority": "low",
+                "action": f"Consider batch-processing {top['domain']} content",
+                "details": f"{top['count']} tasks from this source",
+                "impact": "More efficient research workflow"
+            })
+
+        # List imbalance
+        lists = analytics.get("list_breakdown", {})
+        largest = lists.get("largest_list", ("", 0))
+        if largest[1] > 100:
+            recommendations.append({
+                "type": "organization",
+                "priority": "low",
+                "action": f"Consider splitting '{largest[0]}' list",
+                "details": f"{largest[1]} tasks in one list",
+                "impact": "Better organization and faster navigation"
+            })
+
+        return recommendations
+
     def generate_weekly_report(self, weeks_back: int = 0) -> str:
         """
         Generate a formatted weekly report.
@@ -314,6 +599,20 @@ class WeeklyTrendsAnalyzer:
             Formatted markdown report string.
         """
         analytics = self.analyze_week(weeks_back)
+
+        # Get briefs for velocity calculation
+        today = datetime.now()
+        week_start = today - timedelta(days=today.weekday() + (weeks_back * 7))
+        week_end = week_start + timedelta(days=6)
+        briefs = self._get_briefs_in_range(week_start, week_end)
+
+        # Add new analytics sections
+        analytics["stale_tasks"] = self._analyze_stale_tasks()
+        analytics["url_domains"] = self._analyze_url_domains()
+        analytics["list_breakdown"] = self._analyze_lists()
+        analytics["velocity"] = self._calculate_velocity(briefs)
+        analytics["theme_comparison"] = self._compare_themes_to_last_week(analytics.get("themes", {}))
+        analytics["recommendations"] = self._generate_action_recommendations(analytics)
 
         # Build the report
         report_lines = [
@@ -341,6 +640,20 @@ class WeeklyTrendsAnalyzer:
                 f"",
             ])
 
+        # Velocity metrics (NEW)
+        velocity = analytics.get("velocity", {})
+        if velocity and velocity.get("trend_direction") != "unknown":
+            report_lines.extend([
+                f"### Completion Velocity",
+                f"- **Daily Change:** {velocity.get('avg_daily_change', 0):+.1f} tasks/day",
+                f"- **Avg Completion Rate:** {velocity.get('completion_rate', 0):.1f} tasks/day",
+                f"- **Current Backlog:** {velocity.get('current_backlog', 0)} tasks",
+                f"- **Trend:** {velocity.get('trend_direction', 'unknown').title()}",
+            ])
+            if velocity.get("days_to_clear"):
+                report_lines.append(f"- **Est. Days to Clear:** {velocity['days_to_clear']} days (at current rate)")
+            report_lines.append("")
+
         # Completion patterns
         completion = analytics.get("completion_insights", {})
         if completion:
@@ -366,9 +679,54 @@ class WeeklyTrendsAnalyzer:
                 f"",
             ])
 
-        # Top themes
+        # Stale Tasks Alert (NEW)
+        stale = analytics.get("stale_tasks", {})
+        if stale.get("stale_count", 0) > 0:
+            report_lines.extend([
+                f"## Stale Tasks Alert",
+                f"",
+                f"**{stale['stale_count']} tasks** are 30+ days old (avg age: {stale.get('avg_age_days', 0)} days)",
+                f"",
+                f"**Oldest tasks to review:**",
+                f"",
+            ])
+            for task in stale.get("stale_tasks", [])[:5]:
+                report_lines.append(f"- [{task['age_days']} days] {task['title']}")
+            report_lines.append("")
+
+        # URL Domain Analysis (NEW)
+        domains = analytics.get("url_domains", {})
+        if domains.get("total_urls", 0) > 0:
+            report_lines.extend([
+                f"## Research Sources",
+                f"",
+                f"**{domains['total_urls']} URLs** from **{domains['unique_domains']} domains**",
+                f"",
+                f"| Domain | Tasks |",
+                f"|--------|-------|",
+            ])
+            for d in domains.get("top_domains", [])[:8]:
+                report_lines.append(f"| {d['domain']} | {d['count']} |")
+            report_lines.append("")
+
+        # List Breakdown (NEW)
+        lists = analytics.get("list_breakdown", {})
+        if lists.get("total_lists", 0) > 0:
+            report_lines.extend([
+                f"## Tasks by List",
+                f"",
+                f"| List | Count |",
+                f"|------|-------|",
+            ])
+            for lst in lists.get("top_lists", []):
+                report_lines.append(f"| {lst['list']} | {lst['count']} |")
+            report_lines.append("")
+
+        # Top themes with week-over-week comparison
         themes = analytics.get("themes", {})
         top_themes = themes.get("top_themes", [])
+        theme_comparison = analytics.get("theme_comparison", {})
+
         if top_themes:
             report_lines.extend([
                 f"## Trending Themes",
@@ -378,6 +736,18 @@ class WeeklyTrendsAnalyzer:
                 theme = theme_data.get("theme", "Unknown")
                 count = theme_data.get("count", 0)
                 report_lines.append(f"{i}. **{theme}** - {count} tasks")
+
+            # Week-over-week comparison (NEW)
+            if theme_comparison.get("comparison_available"):
+                trending_up = theme_comparison.get("trending_up", [])
+                trending_down = theme_comparison.get("trending_down", [])
+
+                if trending_up or trending_down:
+                    report_lines.extend(["", "**Week-over-Week Changes:**"])
+                    for t in trending_up:
+                        report_lines.append(f"- {t['theme']}: +{t['change']} tasks")
+                    for t in trending_down:
+                        report_lines.append(f"- {t['theme']}: {t['change']} tasks")
 
             report_lines.append("")
 
@@ -410,6 +780,26 @@ class WeeklyTrendsAnalyzer:
                 )
 
             report_lines.append("")
+
+        # Action Recommendations (NEW)
+        recommendations = analytics.get("recommendations", [])
+        if recommendations:
+            report_lines.extend([
+                f"---",
+                f"",
+                f"## Action Recommendations",
+                f"",
+            ])
+            for rec in recommendations:
+                priority_emoji = {"high": "!!", "medium": "!", "low": ""}
+                emoji = priority_emoji.get(rec.get("priority", ""), "")
+                report_lines.extend([
+                    f"### {emoji} {rec['action']}",
+                    f"- **Type:** {rec['type'].title()}",
+                    f"- **Details:** {rec['details']}",
+                    f"- **Impact:** {rec['impact']}",
+                    f"",
+                ])
 
         # Add insights section
         report_lines.extend([

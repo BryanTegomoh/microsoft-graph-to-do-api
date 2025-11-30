@@ -428,60 +428,174 @@ class EmailSenderEnhanced:
         return html
 
     def _create_weekly_digest_html(self, markdown_content: str, week_stats: Dict) -> str:
-        """Create HTML version of weekly digest email."""
+        """Create HTML version of weekly digest email with rich formatting."""
+        import re
+
+        # Parse sections from markdown for better formatting
+        stale_count = week_stats.get('stale_count', 0)
+        velocity = week_stats.get('velocity', {})
+        domains = week_stats.get('url_domains', {})
+        lists = week_stats.get('list_breakdown', {})
+        recommendations = week_stats.get('recommendations', [])
+
+        # Build stale tasks section
+        stale_html = ""
+        if stale_count > 0:
+            stale_tasks = week_stats.get('stale_tasks', [])[:5]
+            stale_items = "".join([f"<li><span style='color:#e74c3c;'>[{t['age_days']}d]</span> {t['title'][:60]}...</li>" for t in stale_tasks])
+            stale_html = f"""
+            <div class="section alert-section">
+                <h3>⚠️ Stale Tasks Alert</h3>
+                <p><strong>{stale_count} tasks</strong> are 30+ days old</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">{stale_items}</ul>
+            </div>
+            """
+
+        # Build domains section
+        domains_html = ""
+        top_domains = domains.get('top_domains', [])[:6]
+        if top_domains:
+            domain_rows = "".join([f"<tr><td>{d['domain']}</td><td style='text-align:right;'><strong>{d['count']}</strong></td></tr>" for d in top_domains])
+            domains_html = f"""
+            <div class="section">
+                <h3>🔗 Research Sources</h3>
+                <p><strong>{domains.get('total_urls', 0)}</strong> URLs from <strong>{domains.get('unique_domains', 0)}</strong> domains</p>
+                <table style="width:100%; border-collapse:collapse; margin:10px 0;">
+                    <tr style="background:#f8f9fa;"><th style="text-align:left; padding:8px;">Domain</th><th style="text-align:right; padding:8px;">Tasks</th></tr>
+                    {domain_rows}
+                </table>
+            </div>
+            """
+
+        # Build lists section
+        lists_html = ""
+        top_lists = lists.get('top_lists', [])[:5]
+        if top_lists:
+            list_rows = "".join([f"<tr><td>{l['list']}</td><td style='text-align:right;'><strong>{l['count']}</strong></td></tr>" for l in top_lists])
+            lists_html = f"""
+            <div class="section">
+                <h3>📋 Tasks by List</h3>
+                <table style="width:100%; border-collapse:collapse; margin:10px 0;">
+                    <tr style="background:#f8f9fa;"><th style="text-align:left; padding:8px;">List</th><th style="text-align:right; padding:8px;">Count</th></tr>
+                    {list_rows}
+                </table>
+            </div>
+            """
+
+        # Build recommendations section
+        recs_html = ""
+        if recommendations:
+            rec_items = ""
+            for rec in recommendations[:3]:
+                priority_color = {"high": "#e74c3c", "medium": "#f39c12", "low": "#3498db"}.get(rec.get('priority', ''), '#777')
+                rec_items += f"""
+                <div style="background:#fff; border-left:4px solid {priority_color}; padding:12px; margin:10px 0; border-radius:4px;">
+                    <strong>{rec['action']}</strong>
+                    <p style="margin:5px 0 0; font-size:13px; color:#666;">{rec['details']}</p>
+                </div>
+                """
+            recs_html = f"""
+            <div class="section">
+                <h3>💡 Action Recommendations</h3>
+                {rec_items}
+            </div>
+            """
+
+        # Velocity section
+        velocity_html = ""
+        if velocity.get('trend_direction') and velocity.get('trend_direction') != 'unknown':
+            trend_icon = {"increasing": "📈", "decreasing": "📉", "stable": "➡️"}.get(velocity.get('trend_direction', ''), '')
+            days_clear = f"<br><span style='font-size:12px;'>Est. {velocity['days_to_clear']} days to clear</span>" if velocity.get('days_to_clear') else ""
+            velocity_html = f"""
+            <div class="stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                <div class="stat-label">Velocity {trend_icon}</div>
+                <div class="stat-number">{velocity.get('avg_daily_change', 0):+.1f}</div>
+                <div class="stat-label">tasks/day{days_clear}</div>
+            </div>
+            """
+
         html = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
             color: #333;
-            max-width: 800px;
+            max-width: 700px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: #f0f2f5;
         }}
         .container {{
             background-color: white;
             padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }}
         h1 {{
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 10px;
+            color: #1a1a2e;
+            border-bottom: 3px solid #4361ee;
+            padding-bottom: 15px;
+            margin-bottom: 5px;
+        }}
+        h2 {{
+            color: #1a1a2e;
+            margin-top: 30px;
+            font-size: 18px;
+        }}
+        h3 {{
+            color: #4361ee;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }}
+        .subtitle {{
+            color: #777;
+            margin-bottom: 25px;
         }}
         .stat-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
             margin: 20px 0;
         }}
         .stat-card {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
-            border-radius: 8px;
+            padding: 18px;
+            border-radius: 10px;
             text-align: center;
         }}
         .stat-number {{
-            font-size: 36px;
+            font-size: 32px;
             font-weight: bold;
-            margin: 10px 0;
+            margin: 8px 0;
         }}
         .stat-label {{
-            font-size: 14px;
+            font-size: 12px;
             opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }}
-        .theme-list {{
+        .section {{
             background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 15px 0;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }}
+        .alert-section {{
+            background-color: #fff5f5;
+            border: 1px solid #fed7d7;
+        }}
+        table {{
+            font-size: 14px;
+        }}
+        table td, table th {{
+            padding: 8px;
+            border-bottom: 1px solid #eee;
         }}
         .footer {{
             margin-top: 30px;
@@ -489,14 +603,14 @@ class EmailSenderEnhanced:
             border-top: 1px solid #ddd;
             text-align: center;
             color: #777;
-            font-size: 14px;
+            font-size: 13px;
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📊 Your Weekly Task Analytics</h1>
-        <p style="color: #777;">{week_stats.get('week_start', 'Week')} to {week_stats.get('week_end', 'Today')}</p>
+        <h1>📊 Weekly Task Analytics</h1>
+        <p class="subtitle">{week_stats.get('week_start', 'Week')} to {week_stats.get('week_end', 'Today')}</p>
 
         <div class="stat-grid">
             <div class="stat-card">
@@ -511,15 +625,25 @@ class EmailSenderEnhanced:
                 <div class="stat-label">Avg Priority</div>
                 <div class="stat-number">{week_stats.get('avg_priority', 0):.0f}</div>
             </div>
+            {velocity_html}
         </div>
 
-        <h2>📈 This Week's Analysis</h2>
-        <div class="theme-list">
-            <pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px; margin: 0;">{markdown_content}</pre>
+        {stale_html}
+        {domains_html}
+        {lists_html}
+        {recs_html}
+
+        <div class="section">
+            <h3>📈 Full Report</h3>
+            <details>
+                <summary style="cursor:pointer; color:#4361ee; font-weight:500;">Click to expand detailed report</summary>
+                <pre style="white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; margin-top: 15px; line-height: 1.5; background: #fff; padding: 15px; border-radius: 6px;">{markdown_content}</pre>
+            </details>
         </div>
 
         <div class="footer">
-            <p><em>Generated by Microsoft To Do AI Task Manager - Weekly Analytics</em></p>
+            <p>Generated by <strong>To Do AI Task Manager</strong></p>
+            <p style="font-size: 11px; color: #aaa;">Weekly Analytics Report</p>
         </div>
     </div>
 </body>

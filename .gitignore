@@ -55,7 +55,6 @@ setup_automation.bat
 setup_automation_3x_daily.bat
 test_config.py
 test_email.py
-.github/workflows/
 
 # LLM/AI and editor artifacts
 .claude/

@@ -1,0 +1,111 @@
+name: Daily Task Brief (3x Daily)
+
+# DISABLED - Using local Windows Task Scheduler instead
+# Uncomment the schedule section below to re-enable cloud runs
+on:
+  # schedule:
+  #   # Run 3x daily - times in UTC (adjust for your timezone)
+  #   # 8 AM, 2 PM, 8 PM EST = 1 PM, 7 PM, 1 AM UTC
+  #   - cron: '0 13 * * *'   # 8 AM EST / 1 PM UTC
+  #   - cron: '0 19 * * *'   # 2 PM EST / 7 PM UTC
+  #   - cron: '0 1 * * *'    # 8 PM EST / 1 AM UTC (next day)
+  workflow_dispatch:  # Keep manual trigger available
+
+jobs:
+  generate-brief:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Restore analysis cache
+        uses: actions/cache@v4
+        with:
+          path: output/cache
+          key: analysis-cache-${{ github.run_id }}
+          restore-keys: |
+            analysis-cache-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore token cache
+        run: |
+          if [ -n "${{ secrets.TOKEN_CACHE }}" ]; then
+            echo '${{ secrets.TOKEN_CACHE }}' > token_cache.json
+            echo "Token cache restored"
+          else
+            echo "No token cache found in secrets"
+          fi
+
+      - name: Generate daily brief
+        run: python main.py
+        env:
+          # Microsoft Graph Auth
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
+          GRAPH_SCOPES: Tasks.ReadWrite offline_access
+
+          # AI Provider
+          AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'anthropic' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+
+          # Email Configuration
+          SEND_EMAIL_BRIEF: 'true'
+          USE_ENHANCED_EMAIL: 'true'
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_SMTP_SERVER: smtp.gmail.com
+          EMAIL_SMTP_PORT: '587'
+
+          # Features
+          LOG_LEVEL: INFO
+          ENABLE_TASK_UPDATES: 'true'
+          AUTO_REMOVE_DUPLICATES: 'true'
+          GENERATE_MARKDOWN_BRIEF: 'true'
+          GENERATE_WEEKLY_REPORT: 'true'
+          WEEKLY_REPORT_DAY: sunday
+
+      - name: Save analysis cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: output/cache
+          key: analysis-cache-${{ github.run_id }}
+
+      - name: Upload brief as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-brief-${{ github.run_id }}
+          path: output/daily_brief_*.md
+          retention-days: 30
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ github.run_id }}
+          path: |
+            output/task_manager.log
+            output/cache/analysis_cache.json
+          retention-days: 7
