@@ -284,6 +284,9 @@ def main():
                         "url_domains": analytics.get("url_domains", {}),
                         "list_breakdown": analytics.get("list_breakdown", {}),
                         "recommendations": analytics.get("recommendations", []),
+                        # New features: deletable and high-priority tasks
+                        "deletable_tasks": analytics.get("deletable_tasks", {}),
+                        "high_priority_tasks": analytics.get("high_priority_tasks", {}),
                     }
 
                     digest_sent = email_sender.send_weekly_digest(str(weekly_report_path), week_stats)
@@ -309,7 +312,9 @@ def main():
         for i, item in enumerate(ranked_tasks[:5], 1):
             task = item["task"]
             score = item["priority_score"]
-            print(f"{i}. [{score:.1f}] {task['title']}")
+            # Encode/decode to handle Unicode on Windows console
+            title = task['title'].encode('ascii', 'replace').decode('ascii')
+            print(f"{i}. [{score:.1f}] {title}")
 
         print(f"\nFull brief available at: {brief_path}\n")
 

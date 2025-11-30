@@ -2,12 +2,15 @@
 
 import logging
 import smtplib
+from html import escape
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional
 from collections import Counter
+
+import markdown
 
 from src.config import Config
 
@@ -437,17 +440,62 @@ class EmailSenderEnhanced:
         domains = week_stats.get('url_domains', {})
         lists = week_stats.get('list_breakdown', {})
         recommendations = week_stats.get('recommendations', [])
+        deletable = week_stats.get('deletable_tasks', {})
+        high_priority = week_stats.get('high_priority_tasks', {})
 
         # Build stale tasks section
         stale_html = ""
         if stale_count > 0:
             stale_tasks = week_stats.get('stale_tasks', [])[:5]
-            stale_items = "".join([f"<li><span style='color:#e74c3c;'>[{t['age_days']}d]</span> {t['title'][:60]}...</li>" for t in stale_tasks])
+            stale_items = "".join([f"<li><span style='color:#e74c3c;'>[{t['age_days']}d]</span> {escape(t.get('title', '')[:60])}...</li>" for t in stale_tasks])
             stale_html = f"""
             <div class="section alert-section">
                 <h3>⚠️ Stale Tasks Alert</h3>
                 <p><strong>{stale_count} tasks</strong> are 30+ days old</p>
                 <ul style="margin: 10px 0; padding-left: 20px;">{stale_items}</ul>
+            </div>
+            """
+
+        # Build high priority tasks section
+        high_priority_html = ""
+        high_priority_count = high_priority.get('high_priority_count', 0)
+        if high_priority_count > 0:
+            hp_tasks = high_priority.get('high_priority_tasks', [])[:8]
+            hp_items = ""
+            for t in hp_tasks:
+                score_str = f"[{t['priority_score']:.0f}]" if t.get('priority_score', 0) > 0 else "[HIGH]"
+                title_text = t.get('title', '')
+                truncated_title = title_text[:55] + ('...' if len(title_text) > 55 else '')
+                due_str = f" <span style='color:#666;font-size:12px;'>(Due: {escape(str(t.get('due_date', '')))})</span>" if t.get('due_date') else ""
+                hp_items += f"<li><span style='color:#e74c3c;font-weight:bold;'>{score_str}</span> {escape(truncated_title)}{due_str}</li>"
+            high_priority_html = f"""
+            <div class="section" style="background-color:#fff5f5; border:1px solid #fed7d7;">
+                <h3>🔥 High Priority Tasks</h3>
+                <p><strong>{high_priority_count} tasks</strong> require immediate attention</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">{hp_items}</ul>
+            </div>
+            """
+
+        # Build deletable tasks section
+        deletable_html = ""
+        deletable_count = deletable.get('deletable_count', 0)
+        if deletable_count > 0:
+            del_tasks = deletable.get('deletable_tasks', [])[:8]
+            del_items = ""
+            for t in del_tasks:
+                title_text = t.get('title', '')
+                truncated_title = title_text[:50] + ('...' if len(title_text) > 50 else '')
+                reason_text = escape(t.get('reason', ''))
+                del_items += f"<li>{escape(truncated_title)} <span style='color:#666;font-size:12px;font-style:italic;'>— {reason_text}</span></li>"
+            past_due = deletable.get('past_due_count', 0)
+            very_old = deletable.get('very_old_count', 0)
+            expired = deletable.get('expired_event_count', 0)
+            deletable_html = f"""
+            <div class="section" style="background-color:#f0fff4; border:1px solid #c6f6d5;">
+                <h3>🗑️ Tasks Safe to Delete</h3>
+                <p><strong>{deletable_count} tasks</strong> may be safe to remove:</p>
+                <p style="font-size:13px;color:#666;">Past due: {past_due} | Very old: {very_old} | Expired events: {expired}</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">{del_items}</ul>
             </div>
             """
 
@@ -513,6 +561,12 @@ class EmailSenderEnhanced:
                 <div class="stat-label">tasks/day{days_clear}</div>
             </div>
             """
+
+        # Convert markdown to HTML for the full report section
+        rendered_markdown = markdown.markdown(
+            markdown_content,
+            extensions=['tables', 'fenced_code', 'nl2br']
+        )
 
         html = f"""
 <!DOCTYPE html>
@@ -605,6 +659,68 @@ class EmailSenderEnhanced:
             color: #777;
             font-size: 13px;
         }}
+        .report-content h1 {{
+            font-size: 20px;
+            color: #1a1a2e;
+            margin: 20px 0 10px 0;
+            border-bottom: 2px solid #4361ee;
+            padding-bottom: 8px;
+        }}
+        .report-content h2 {{
+            font-size: 17px;
+            color: #4361ee;
+            margin: 18px 0 8px 0;
+        }}
+        .report-content h3 {{
+            font-size: 15px;
+            color: #555;
+            margin: 15px 0 6px 0;
+        }}
+        .report-content p {{
+            margin: 8px 0;
+        }}
+        .report-content ul, .report-content ol {{
+            margin: 10px 0;
+            padding-left: 25px;
+        }}
+        .report-content li {{
+            margin: 5px 0;
+        }}
+        .report-content strong {{
+            color: #333;
+        }}
+        .report-content code {{
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+        }}
+        .report-content pre {{
+            background-color: #f4f4f4;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }}
+        .report-content table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }}
+        .report-content table th {{
+            background-color: #f8f9fa;
+            text-align: left;
+            font-weight: 600;
+        }}
+        .report-content table td, .report-content table th {{
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+        }}
+        .report-content hr {{
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 15px 0;
+        }}
     </style>
 </head>
 <body>
@@ -629,6 +745,8 @@ class EmailSenderEnhanced:
         </div>
 
         {stale_html}
+        {high_priority_html}
+        {deletable_html}
         {domains_html}
         {lists_html}
         {recs_html}
@@ -637,7 +755,9 @@ class EmailSenderEnhanced:
             <h3>📈 Full Report</h3>
             <details>
                 <summary style="cursor:pointer; color:#4361ee; font-weight:500;">Click to expand detailed report</summary>
-                <pre style="white-space: pre-wrap; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; margin-top: 15px; line-height: 1.5; background: #fff; padding: 15px; border-radius: 6px;">{markdown_content}</pre>
+                <div class="report-content" style="margin-top: 15px; line-height: 1.6; background: #fff; padding: 20px; border-radius: 8px; font-size: 14px;">
+                    {rendered_markdown}
+                </div>
             </details>
         </div>
 

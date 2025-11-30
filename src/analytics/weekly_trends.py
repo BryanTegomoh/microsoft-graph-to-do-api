@@ -354,6 +354,158 @@ class WeeklyTrendsAnalyzer:
             "avg_age_days": round(sum(t["age_days"] for t in stale_tasks) / len(stale_tasks), 1) if stale_tasks else 0,
         }
 
+    def _analyze_deletable_tasks(self) -> Dict:
+        """
+        Identify tasks that are safe to delete.
+
+        Criteria for deletable tasks:
+        - Past due date (deadline has passed)
+        - Very old tasks (90+ days) with no due date
+        - Tasks with expired/time-sensitive content (events that have passed)
+
+        Returns:
+            Dictionary with deletable task analysis.
+        """
+        if not self.tasks:
+            return {"deletable_count": 0, "deletable_tasks": [], "reasons": {}}
+
+        now = datetime.now()
+        deletable_tasks = []
+        reason_counts = Counter()
+
+        for task in self.tasks:
+            title = task.get("title", "")
+            due_date_str = task.get("due_date")
+            created_at = task.get("created_at")
+            delete_reason = None
+
+            # Check for past due date
+            if due_date_str:
+                try:
+                    if isinstance(due_date_str, str):
+                        due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00'))
+                        due_date = due_date.replace(tzinfo=None)
+                    else:
+                        due_date = due_date_str
+
+                    days_overdue = (now - due_date).days
+                    if days_overdue > 7:  # More than a week overdue
+                        delete_reason = f"Overdue by {days_overdue} days"
+                        reason_counts["past_due"] += 1
+                except (ValueError, TypeError):
+                    pass
+
+            # Check for very old tasks without due dates (90+ days)
+            if not delete_reason and created_at and not due_date_str:
+                try:
+                    if isinstance(created_at, str):
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        created_date = created_date.replace(tzinfo=None)
+                    else:
+                        created_date = created_at
+
+                    age_days = (now - created_date).days
+                    if age_days >= 90:
+                        delete_reason = f"Very old ({age_days} days, no due date)"
+                        reason_counts["very_old"] += 1
+                except (ValueError, TypeError):
+                    pass
+
+            # Check for time-sensitive keywords that suggest expired content
+            if not delete_reason:
+                title_lower = title.lower()
+                # Check for past dates in title (e.g., "webinar dec 15", "event nov 2024")
+                date_patterns = [
+                    r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2}\b',
+                    r'\b\d{1,2}/\d{1,2}/202[0-4]\b',
+                    r'\b202[0-3]\b',  # Years 2020-2023 are definitely past
+                ]
+                for pattern in date_patterns:
+                    if re.search(pattern, title_lower):
+                        # Only flag if it's an event-like task
+                        event_keywords = ['webinar', 'event', 'conference', 'deadline', 'expires', 'ends', 'register by', 'apply by']
+                        if any(kw in title_lower for kw in event_keywords):
+                            delete_reason = "Time-sensitive event may have passed"
+                            reason_counts["expired_event"] += 1
+                            break
+
+            if delete_reason:
+                deletable_tasks.append({
+                    "title": title[:80],
+                    "reason": delete_reason,
+                    "list_name": task.get("list_name", "Unknown"),
+                    "id": task.get("id"),
+                    "due_date": due_date_str,
+                })
+
+        # Sort by reason priority (past due first, then very old, then expired events)
+        priority_order = {"past_due": 0, "very_old": 1, "expired_event": 2}
+        deletable_tasks.sort(key=lambda x: (
+            priority_order.get(x["reason"].split()[0].lower() if "Overdue" in x["reason"] else
+                              "very_old" if "Very old" in x["reason"] else "expired_event", 3)
+        ))
+
+        return {
+            "deletable_count": len(deletable_tasks),
+            "deletable_tasks": deletable_tasks[:15],  # Top 15
+            "reasons": dict(reason_counts),
+            "past_due_count": reason_counts.get("past_due", 0),
+            "very_old_count": reason_counts.get("very_old", 0),
+            "expired_event_count": reason_counts.get("expired_event", 0),
+        }
+
+    def _analyze_high_priority_tasks(self, threshold: int = 75) -> Dict:
+        """
+        Identify high-priority tasks that need immediate attention.
+
+        Args:
+            threshold: Priority score threshold (default 75+).
+
+        Returns:
+            Dictionary with high-priority task analysis.
+        """
+        if not self.tasks:
+            return {"high_priority_count": 0, "high_priority_tasks": [], "categories": {}}
+
+        high_priority_tasks = []
+        category_counts = Counter()
+
+        for task in self.tasks:
+            # Check if task has priority score from analysis
+            priority_score = task.get("priority_score", 0)
+
+            # Also check importance field from Microsoft To Do
+            importance = task.get("importance", "normal")
+
+            # Consider high priority if score >= threshold OR importance is "high"
+            is_high_priority = priority_score >= threshold or importance == "high"
+
+            if is_high_priority:
+                category = task.get("category", "Other")
+                category_counts[category] += 1
+
+                high_priority_tasks.append({
+                    "title": task.get("title", "Unknown")[:80],
+                    "priority_score": priority_score,
+                    "importance": importance,
+                    "list_name": task.get("list_name", "Unknown"),
+                    "due_date": task.get("due_date"),
+                    "id": task.get("id"),
+                    "category": category,
+                })
+
+        # Sort by priority score (highest first), then by due date
+        high_priority_tasks.sort(
+            key=lambda x: (-x["priority_score"], x.get("due_date") or "9999")
+        )
+
+        return {
+            "high_priority_count": len(high_priority_tasks),
+            "high_priority_tasks": high_priority_tasks[:10],  # Top 10
+            "categories": dict(category_counts),
+            "top_category": category_counts.most_common(1)[0] if category_counts else ("None", 0),
+        }
+
     def _analyze_url_domains(self) -> Dict:
         """
         Analyze which domains/sources tasks come from.
@@ -608,6 +760,8 @@ class WeeklyTrendsAnalyzer:
 
         # Add new analytics sections
         analytics["stale_tasks"] = self._analyze_stale_tasks()
+        analytics["deletable_tasks"] = self._analyze_deletable_tasks()
+        analytics["high_priority_tasks"] = self._analyze_high_priority_tasks()
         analytics["url_domains"] = self._analyze_url_domains()
         analytics["list_breakdown"] = self._analyze_lists()
         analytics["velocity"] = self._calculate_velocity(briefs)
@@ -679,7 +833,7 @@ class WeeklyTrendsAnalyzer:
                 f"",
             ])
 
-        # Stale Tasks Alert (NEW)
+        # Stale Tasks Alert
         stale = analytics.get("stale_tasks", {})
         if stale.get("stale_count", 0) > 0:
             report_lines.extend([
@@ -694,7 +848,42 @@ class WeeklyTrendsAnalyzer:
                 report_lines.append(f"- [{task['age_days']} days] {task['title']}")
             report_lines.append("")
 
-        # URL Domain Analysis (NEW)
+        # High Priority Tasks Alert (NEW)
+        high_priority = analytics.get("high_priority_tasks", {})
+        if high_priority.get("high_priority_count", 0) > 0:
+            report_lines.extend([
+                f"## High Priority Tasks",
+                f"",
+                f"**{high_priority['high_priority_count']} tasks** require immediate attention",
+                f"",
+                f"**Top priority tasks:**",
+                f"",
+            ])
+            for task in high_priority.get("high_priority_tasks", [])[:10]:
+                score_str = f"[{task['priority_score']:.0f}]" if task['priority_score'] > 0 else "[HIGH]"
+                due_str = f" (Due: {task['due_date']})" if task.get('due_date') else ""
+                report_lines.append(f"- {score_str} {task['title']}{due_str}")
+            report_lines.append("")
+
+        # Deletable Tasks Section (NEW)
+        deletable = analytics.get("deletable_tasks", {})
+        if deletable.get("deletable_count", 0) > 0:
+            report_lines.extend([
+                f"## Tasks Safe to Delete",
+                f"",
+                f"**{deletable['deletable_count']} tasks** may be safe to delete:",
+                f"- Past due: {deletable.get('past_due_count', 0)} tasks",
+                f"- Very old (90+ days): {deletable.get('very_old_count', 0)} tasks",
+                f"- Expired events: {deletable.get('expired_event_count', 0)} tasks",
+                f"",
+                f"**Suggested for cleanup:**",
+                f"",
+            ])
+            for task in deletable.get("deletable_tasks", [])[:10]:
+                report_lines.append(f"- {task['title']} — *{task['reason']}*")
+            report_lines.append("")
+
+        # URL Domain Analysis
         domains = analytics.get("url_domains", {})
         if domains.get("total_urls", 0) > 0:
             report_lines.extend([

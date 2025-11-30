@@ -36,11 +36,12 @@ class TaskUpdater:
         """
         from src.config import Config
 
-        list_id = task.get("listId")
+        # Support both camelCase (raw) and snake_case (parsed) task formats
+        list_id = task.get("listId") or task.get("list_id")
         task_id = task.get("id")
 
         if not list_id or not task_id:
-            logger.error("Missing list_id or task_id")
+            logger.error(f"Missing list_id or task_id for task: {task.get('title', 'unknown')[:50]}")
             return False
 
         # Map priority score to Microsoft To Do importance
@@ -95,7 +96,8 @@ class TaskUpdater:
         Returns:
             True if successful, False otherwise.
         """
-        list_id = task.get("listId")
+        # Support both camelCase (raw) and snake_case (parsed) task formats
+        list_id = task.get("listId") or task.get("list_id")
         task_id = task.get("id")
 
         if not list_id or not task_id:
