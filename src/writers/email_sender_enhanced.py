@@ -794,7 +794,6 @@ class EmailSenderEnhanced:
 """
 
         # Quick Wins Section
-        quick_wins = self._get_quick_wins(top_tasks)
         if quick_wins:
             html += """
         <div class="section" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-left: 4px solid #28a745;">
@@ -817,7 +816,6 @@ class EmailSenderEnhanced:
 """
 
         # Aging Tasks Alert
-        aging_tasks = self._get_aging_tasks(top_tasks)
         if aging_tasks:
             html += f"""
         <div class="section" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-left: 4px solid #ffc107;">
@@ -839,7 +837,6 @@ class EmailSenderEnhanced:
 """
 
         # New Tasks Since Last Brief
-        new_tasks, total_new = self._get_new_tasks_since_last_brief(top_tasks)
         if new_tasks:
             html += f"""
         <div class="section" style="background: linear-gradient(135deg, #e7f3ff 0%, #cce5ff 100%); border-left: 4px solid #007bff;">
@@ -860,10 +857,6 @@ class EmailSenderEnhanced:
             html += """
         </div>
 """
-
-        # Update tracking files
-        self._update_brief_timestamp()
-        completion_stats = self._get_completion_stats(len(top_tasks))
 
         # Footer with Completion Streak
         week_completed = completion_stats.get('weekly_completed', 0)
