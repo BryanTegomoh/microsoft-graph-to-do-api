@@ -127,9 +127,21 @@ class TaskUpdater:
 
         return True
 
+    def _get_expected_importance(self, priority_score: float) -> str:
+        """Map priority score to Microsoft To Do importance level."""
+        if priority_score >= 75:
+            return "high"
+        elif priority_score >= 40:
+            return "normal"
+        else:
+            return "low"
+
     def batch_update_tasks(self, tasks_with_analysis: List[Dict], dry_run: bool = False) -> Dict:
         """
         Update multiple tasks with analysis results.
+
+        Only updates tasks where the importance level needs to change,
+        skipping tasks that already have the correct importance.
 
         Args:
             tasks_with_analysis: List of tasks with analysis.
@@ -157,6 +169,14 @@ class TaskUpdater:
                 stats["skipped"] += 1
                 continue
 
+            # Check if importance already matches - skip if no change needed
+            current_importance = task.get("importance", "").lower()
+            expected_importance = self._get_expected_importance(score)
+
+            if current_importance == expected_importance:
+                stats["skipped"] += 1
+                continue
+
             success = self.update_task_priority(task, score, analysis)
             if success:
                 stats["updated"] += 1
@@ -164,4 +184,6 @@ class TaskUpdater:
                 stats["failed"] += 1
 
         logger.info(f"Batch update complete: {stats}")
+        if stats["skipped"] > 0:
+            logger.info(f"Skipped {stats['skipped']} tasks (importance unchanged)")
         return stats

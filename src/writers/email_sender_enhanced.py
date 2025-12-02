@@ -447,12 +447,17 @@ class EmailSenderEnhanced:
         stale_html = ""
         if stale_count > 0:
             stale_tasks = week_stats.get('stale_tasks', [])[:5]
-            stale_items = "".join([f"<li><span style='color:#e74c3c;'>[{t['age_days']}d]</span> {escape(t.get('title', '')[:60])}...</li>" for t in stale_tasks])
+            stale_items = ""
+            for t in stale_tasks:
+                title = escape(t.get('title', '')[:55])
+                if len(t.get('title', '')) > 55:
+                    title += '...'
+                stale_items += f"<li><span class='badge badge-warning'>{t['age_days']}d old</span> {title}</li>"
             stale_html = f"""
             <div class="section alert-section">
-                <h3>⚠️ Stale Tasks Alert</h3>
-                <p><strong>{stale_count} tasks</strong> are 30+ days old</p>
-                <ul style="margin: 10px 0; padding-left: 20px;">{stale_items}</ul>
+                <h3>Stale Tasks Alert</h3>
+                <p><strong>{stale_count} tasks</strong> are 30+ days old and may need attention</p>
+                <ul>{stale_items}</ul>
             </div>
             """
 
@@ -463,16 +468,16 @@ class EmailSenderEnhanced:
             hp_tasks = high_priority.get('high_priority_tasks', [])[:8]
             hp_items = ""
             for t in hp_tasks:
-                score_str = f"[{t['priority_score']:.0f}]" if t.get('priority_score', 0) > 0 else "[HIGH]"
+                score_str = f"{t['priority_score']:.0f}" if t.get('priority_score', 0) > 0 else "HIGH"
                 title_text = t.get('title', '')
-                truncated_title = title_text[:55] + ('...' if len(title_text) > 55 else '')
-                due_str = f" <span style='color:#666;font-size:12px;'>(Due: {escape(str(t.get('due_date', '')))})</span>" if t.get('due_date') else ""
-                hp_items += f"<li><span style='color:#e74c3c;font-weight:bold;'>{score_str}</span> {escape(truncated_title)}{due_str}</li>"
+                truncated_title = escape(title_text[:50] + ('...' if len(title_text) > 50 else ''))
+                due_str = f" <span style='color:#6b7280;font-size:12px;'>Due: {t.get('due_date', '')}</span>" if t.get('due_date') else ""
+                hp_items += f"<li><span class='badge badge-danger'>{score_str}</span> {truncated_title}{due_str}</li>"
             high_priority_html = f"""
-            <div class="section" style="background-color:#fff5f5; border:1px solid #fed7d7;">
-                <h3>🔥 High Priority Tasks</h3>
+            <div class="section priority-section">
+                <h3>High Priority Tasks</h3>
                 <p><strong>{high_priority_count} tasks</strong> require immediate attention</p>
-                <ul style="margin: 10px 0; padding-left: 20px;">{hp_items}</ul>
+                <ul>{hp_items}</ul>
             </div>
             """
 
@@ -484,18 +489,22 @@ class EmailSenderEnhanced:
             del_items = ""
             for t in del_tasks:
                 title_text = t.get('title', '')
-                truncated_title = title_text[:50] + ('...' if len(title_text) > 50 else '')
+                truncated_title = escape(title_text[:45] + ('...' if len(title_text) > 45 else ''))
                 reason_text = escape(t.get('reason', ''))
-                del_items += f"<li>{escape(truncated_title)} <span style='color:#666;font-size:12px;font-style:italic;'>— {reason_text}</span></li>"
+                del_items += f"<li>{truncated_title} <span style='color:#6b7280;font-size:12px;font-style:italic;'>- {reason_text}</span></li>"
             past_due = deletable.get('past_due_count', 0)
             very_old = deletable.get('very_old_count', 0)
             expired = deletable.get('expired_event_count', 0)
             deletable_html = f"""
-            <div class="section" style="background-color:#f0fff4; border:1px solid #c6f6d5;">
-                <h3>🗑️ Tasks Safe to Delete</h3>
-                <p><strong>{deletable_count} tasks</strong> may be safe to remove:</p>
-                <p style="font-size:13px;color:#666;">Past due: {past_due} | Very old: {very_old} | Expired events: {expired}</p>
-                <ul style="margin: 10px 0; padding-left: 20px;">{del_items}</ul>
+            <div class="section cleanup-section">
+                <h3>Tasks Safe to Delete</h3>
+                <p><strong>{deletable_count} tasks</strong> may be safe to remove</p>
+                <p style="font-size:13px;color:#4b5563;margin-bottom:12px;">
+                    <span class="badge badge-danger">{past_due} past due</span>
+                    <span class="badge badge-warning">{very_old} very old</span>
+                    <span class="badge badge-success">{expired} expired</span>
+                </p>
+                <ul>{del_items}</ul>
             </div>
             """
 
@@ -503,13 +512,15 @@ class EmailSenderEnhanced:
         domains_html = ""
         top_domains = domains.get('top_domains', [])[:6]
         if top_domains:
-            domain_rows = "".join([f"<tr><td>{d['domain']}</td><td style='text-align:right;'><strong>{d['count']}</strong></td></tr>" for d in top_domains])
+            domain_rows = ""
+            for d in top_domains:
+                domain_rows += f"<tr><td>{escape(d['domain'])}</td><td style='text-align:right;font-weight:600;color:#065f46;'>{d['count']}</td></tr>"
             domains_html = f"""
-            <div class="section">
-                <h3>🔗 Research Sources</h3>
-                <p><strong>{domains.get('total_urls', 0)}</strong> URLs from <strong>{domains.get('unique_domains', 0)}</strong> domains</p>
-                <table style="width:100%; border-collapse:collapse; margin:10px 0;">
-                    <tr style="background:#f8f9fa;"><th style="text-align:left; padding:8px;">Domain</th><th style="text-align:right; padding:8px;">Tasks</th></tr>
+            <div class="section table-section">
+                <h3>Research Sources</h3>
+                <p><strong>{domains.get('total_urls', 0)}</strong> URLs from <strong>{domains.get('unique_domains', 0)}</strong> unique domains</p>
+                <table>
+                    <tr><th>Domain</th><th style="text-align:right;">Tasks</th></tr>
                     {domain_rows}
                 </table>
             </div>
@@ -519,12 +530,14 @@ class EmailSenderEnhanced:
         lists_html = ""
         top_lists = lists.get('top_lists', [])[:5]
         if top_lists:
-            list_rows = "".join([f"<tr><td>{l['list']}</td><td style='text-align:right;'><strong>{l['count']}</strong></td></tr>" for l in top_lists])
+            list_rows = ""
+            for l in top_lists:
+                list_rows += f"<tr><td>{escape(l['list'])}</td><td style='text-align:right;font-weight:600;color:#065f46;'>{l['count']}</td></tr>"
             lists_html = f"""
-            <div class="section">
-                <h3>📋 Tasks by List</h3>
-                <table style="width:100%; border-collapse:collapse; margin:10px 0;">
-                    <tr style="background:#f8f9fa;"><th style="text-align:left; padding:8px;">List</th><th style="text-align:right; padding:8px;">Count</th></tr>
+            <div class="section table-section">
+                <h3>Tasks by List</h3>
+                <table>
+                    <tr><th>List</th><th style="text-align:right;">Count</th></tr>
                     {list_rows}
                 </table>
             </div>
@@ -535,16 +548,16 @@ class EmailSenderEnhanced:
         if recommendations:
             rec_items = ""
             for rec in recommendations[:3]:
-                priority_color = {"high": "#e74c3c", "medium": "#f39c12", "low": "#3498db"}.get(rec.get('priority', ''), '#777')
+                priority_class = {"high": "high", "medium": "medium"}.get(rec.get('priority', ''), '')
                 rec_items += f"""
-                <div style="background:#fff; border-left:4px solid {priority_color}; padding:12px; margin:10px 0; border-radius:4px;">
-                    <strong>{rec['action']}</strong>
-                    <p style="margin:5px 0 0; font-size:13px; color:#666;">{rec['details']}</p>
+                <div class="rec-card {priority_class}">
+                    <strong>{escape(rec['action'])}</strong>
+                    <p>{escape(rec['details'])}</p>
                 </div>
                 """
             recs_html = f"""
             <div class="section">
-                <h3>💡 Action Recommendations</h3>
+                <h3>Action Recommendations</h3>
                 {rec_items}
             </div>
             """
@@ -552,10 +565,10 @@ class EmailSenderEnhanced:
         # Velocity section
         velocity_html = ""
         if velocity.get('trend_direction') and velocity.get('trend_direction') != 'unknown':
-            trend_icon = {"increasing": "📈", "decreasing": "📉", "stable": "➡️"}.get(velocity.get('trend_direction', ''), '')
-            days_clear = f"<br><span style='font-size:12px;'>Est. {velocity['days_to_clear']} days to clear</span>" if velocity.get('days_to_clear') else ""
+            trend_icon = {"increasing": "+", "decreasing": "-", "stable": "="}.get(velocity.get('trend_direction', ''), '')
+            days_clear = f"<br><span style='font-size:10px;opacity:0.8;'>{velocity['days_to_clear']}d to clear</span>" if velocity.get('days_to_clear') else ""
             velocity_html = f"""
-            <div class="stat-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+            <div class="stat-card velocity">
                 <div class="stat-label">Velocity {trend_icon}</div>
                 <div class="stat-number">{velocity.get('avg_daily_change', 0):+.1f}</div>
                 <div class="stat-label">tasks/day{days_clear}</div>
@@ -568,6 +581,10 @@ class EmailSenderEnhanced:
             extensions=['tables', 'fenced_code', 'nl2br']
         )
 
+        # Get current date for header
+        from datetime import datetime
+        report_date = datetime.now().strftime("%B %d, %Y")
+
         html = f"""
 <!DOCTYPE html>
 <html>
@@ -575,195 +592,384 @@ class EmailSenderEnhanced:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        * {{
+            box-sizing: border-box;
+        }}
         body {{
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.6;
-            color: #333;
-            max-width: 700px;
+            color: #1f2937;
+            max-width: 680px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f0f2f5;
+            padding: 0;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+        }}
+        .email-wrapper {{
+            padding: 30px 20px;
         }}
         .container {{
             background-color: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(5, 150, 105, 0.15);
+            overflow: hidden;
         }}
-        h1 {{
-            color: #1a1a2e;
-            border-bottom: 3px solid #4361ee;
-            padding-bottom: 15px;
-            margin-bottom: 5px;
-        }}
-        h2 {{
-            color: #1a1a2e;
-            margin-top: 30px;
-            font-size: 18px;
-        }}
-        h3 {{
-            color: #4361ee;
-            margin: 0 0 10px 0;
-            font-size: 16px;
-        }}
-        .subtitle {{
-            color: #777;
-            margin-bottom: 25px;
-        }}
-        .stat-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            margin: 20px 0;
-        }}
-        .stat-card {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .header {{
+            background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%);
             color: white;
-            padding: 18px;
-            border-radius: 10px;
+            padding: 35px 30px;
             text-align: center;
         }}
+        .header h1 {{
+            margin: 0 0 8px 0;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }}
+        .header .subtitle {{
+            color: rgba(255,255,255,0.9);
+            font-size: 15px;
+            margin: 0;
+        }}
+        .header .date-badge {{
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-top: 15px;
+            backdrop-filter: blur(10px);
+        }}
+        .content {{
+            padding: 30px;
+        }}
+        .stat-grid {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 25px;
+        }}
+        .stat-card {{
+            flex: 1;
+            min-width: 140px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 20px 16px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }}
+        .stat-card.secondary {{
+            background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+            box-shadow: 0 4px 15px rgba(20, 184, 166, 0.3);
+        }}
+        .stat-card.tertiary {{
+            background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
+        }}
+        .stat-card.velocity {{
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }}
         .stat-number {{
-            font-size: 32px;
-            font-weight: bold;
-            margin: 8px 0;
+            font-size: 36px;
+            font-weight: 700;
+            margin: 5px 0;
+            line-height: 1;
         }}
         .stat-label {{
-            font-size: 12px;
+            font-size: 11px;
             opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }}
+        .section {{
+            background-color: #f9fafb;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border: 1px solid #e5e7eb;
+        }}
+        .section h3 {{
+            color: #065f46;
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .section p {{
+            margin: 0 0 10px 0;
+            color: #4b5563;
+            font-size: 14px;
+        }}
+        .section ul {{
+            margin: 12px 0 0 0;
+            padding-left: 0;
+            list-style: none;
+        }}
+        .section ul li {{
+            padding: 10px 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            border-left: 3px solid #10b981;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }}
+        .alert-section {{
+            background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+            border: 1px solid #fcd34d;
+        }}
+        .alert-section h3 {{
+            color: #92400e;
+        }}
+        .alert-section ul li {{
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }}
+        .priority-section {{
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border: 1px solid #fca5a5;
+        }}
+        .priority-section h3 {{
+            color: #991b1b;
+        }}
+        .priority-section ul li {{
+            border-left-color: #ef4444;
+            background: #fff5f5;
+        }}
+        .cleanup-section {{
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border: 1px solid #6ee7b7;
+        }}
+        .cleanup-section h3 {{
+            color: #065f46;
+        }}
+        .cleanup-section ul li {{
+            border-left-color: #10b981;
+            background: #ecfdf5;
+        }}
+        .table-section table {{
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 12px;
+            font-size: 14px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+        .table-section th {{
+            background: #065f46;
+            color: white;
+            text-align: left;
+            padding: 12px 15px;
+            font-weight: 500;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }}
-        .section {{
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
+        .table-section td {{
+            padding: 12px 15px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
         }}
-        .alert-section {{
-            background-color: #fff5f5;
-            border: 1px solid #fed7d7;
+        .table-section tr:last-child td {{
+            border-bottom: none;
         }}
-        table {{
+        .table-section tr:hover td {{
+            background: #f0fdf4;
+        }}
+        .rec-card {{
+            background: white;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 10px;
+            border-left: 4px solid #10b981;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }}
+        .rec-card.high {{
+            border-left-color: #ef4444;
+            background: linear-gradient(90deg, #fff5f5 0%, white 100%);
+        }}
+        .rec-card.medium {{
+            border-left-color: #f59e0b;
+            background: linear-gradient(90deg, #fffbeb 0%, white 100%);
+        }}
+        .rec-card strong {{
+            color: #1f2937;
             font-size: 14px;
         }}
-        table td, table th {{
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-        }}
-        .footer {{
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #ddd;
-            text-align: center;
-            color: #777;
+        .rec-card p {{
+            margin: 6px 0 0 0;
             font-size: 13px;
+            color: #6b7280;
+        }}
+        .expand-section {{
+            background: #f0fdf4;
+            border: 1px solid #a7f3d0;
+            border-radius: 12px;
+            margin-top: 20px;
+        }}
+        .expand-section summary {{
+            cursor: pointer;
+            padding: 16px 20px;
+            font-weight: 600;
+            color: #065f46;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .expand-section summary:hover {{
+            background: #ecfdf5;
+            border-radius: 12px;
+        }}
+        .report-content {{
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #d1fae5;
+            line-height: 1.7;
+            font-size: 14px;
         }}
         .report-content h1 {{
-            font-size: 20px;
-            color: #1a1a2e;
-            margin: 20px 0 10px 0;
-            border-bottom: 2px solid #4361ee;
+            font-size: 18px;
+            color: #065f46;
+            margin: 25px 0 12px 0;
             padding-bottom: 8px;
+            border-bottom: 2px solid #10b981;
         }}
         .report-content h2 {{
-            font-size: 17px;
-            color: #4361ee;
-            margin: 18px 0 8px 0;
+            font-size: 16px;
+            color: #047857;
+            margin: 20px 0 10px 0;
         }}
         .report-content h3 {{
-            font-size: 15px;
-            color: #555;
-            margin: 15px 0 6px 0;
+            font-size: 14px;
+            color: #059669;
+            margin: 16px 0 8px 0;
         }}
         .report-content p {{
-            margin: 8px 0;
+            margin: 10px 0;
+            color: #374151;
         }}
         .report-content ul, .report-content ol {{
-            margin: 10px 0;
-            padding-left: 25px;
+            margin: 12px 0;
+            padding-left: 24px;
         }}
         .report-content li {{
-            margin: 5px 0;
+            margin: 6px 0;
+            color: #4b5563;
         }}
         .report-content strong {{
-            color: #333;
-        }}
-        .report-content code {{
-            background-color: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'SF Mono', Monaco, monospace;
-            font-size: 13px;
-        }}
-        .report-content pre {{
-            background-color: #f4f4f4;
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
+            color: #1f2937;
         }}
         .report-content table {{
             width: 100%;
             border-collapse: collapse;
-            margin: 10px 0;
+            margin: 15px 0;
+            font-size: 13px;
         }}
-        .report-content table th {{
-            background-color: #f8f9fa;
+        .report-content th {{
+            background: #ecfdf5;
+            color: #065f46;
             text-align: left;
+            padding: 10px 12px;
+            font-weight: 600;
+            border: 1px solid #d1fae5;
+        }}
+        .report-content td {{
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+        }}
+        .footer {{
+            background: #f9fafb;
+            padding: 25px 30px;
+            text-align: center;
+            border-top: 1px solid #e5e7eb;
+        }}
+        .footer p {{
+            margin: 0;
+            color: #6b7280;
+            font-size: 13px;
+        }}
+        .footer .brand {{
+            color: #065f46;
             font-weight: 600;
         }}
-        .report-content table td, .report-content table th {{
-            padding: 10px;
-            border: 1px solid #e0e0e0;
+        .footer .tagline {{
+            margin-top: 8px;
+            font-size: 11px;
+            color: #9ca3af;
         }}
-        .report-content hr {{
-            border: none;
-            border-top: 1px solid #ddd;
-            margin: 15px 0;
+        .badge {{
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        .badge-danger {{
+            background: #fee2e2;
+            color: #dc2626;
+        }}
+        .badge-warning {{
+            background: #fef3c7;
+            color: #d97706;
+        }}
+        .badge-success {{
+            background: #d1fae5;
+            color: #059669;
         }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 Weekly Task Analytics</h1>
-        <p class="subtitle">{week_stats.get('week_start', 'Week')} to {week_stats.get('week_end', 'Today')}</p>
-
-        <div class="stat-grid">
-            <div class="stat-card">
-                <div class="stat-label">Total Tasks</div>
-                <div class="stat-number">{week_stats.get('total_tasks', 0)}</div>
+    <div class="email-wrapper">
+        <div class="container">
+            <div class="header">
+                <h1>Weekly Task Analytics</h1>
+                <p class="subtitle">Your productivity insights at a glance</p>
+                <div class="date-badge">{week_stats.get('week_start', 'Week')} - {week_stats.get('week_end', 'Today')}</div>
             </div>
-            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                <div class="stat-label">Net Change</div>
-                <div class="stat-number">{week_stats.get('net_change', 0):+d}</div>
-            </div>
-            <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                <div class="stat-label">Avg Priority</div>
-                <div class="stat-number">{week_stats.get('avg_priority', 0):.0f}</div>
-            </div>
-            {velocity_html}
-        </div>
 
-        {stale_html}
-        {high_priority_html}
-        {deletable_html}
-        {domains_html}
-        {lists_html}
-        {recs_html}
-
-        <div class="section">
-            <h3>📈 Full Report</h3>
-            <details>
-                <summary style="cursor:pointer; color:#4361ee; font-weight:500;">Click to expand detailed report</summary>
-                <div class="report-content" style="margin-top: 15px; line-height: 1.6; background: #fff; padding: 20px; border-radius: 8px; font-size: 14px;">
-                    {rendered_markdown}
+            <div class="content">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Tasks</div>
+                        <div class="stat-number">{week_stats.get('total_tasks', 0)}</div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <div class="stat-label">Net Change</div>
+                        <div class="stat-number">{week_stats.get('net_change', 0):+d}</div>
+                    </div>
+                    <div class="stat-card tertiary">
+                        <div class="stat-label">Avg Priority</div>
+                        <div class="stat-number">{week_stats.get('avg_priority', 0):.0f}</div>
+                    </div>
+                    {velocity_html}
                 </div>
-            </details>
-        </div>
 
-        <div class="footer">
-            <p>Generated by <strong>To Do AI Task Manager</strong></p>
-            <p style="font-size: 11px; color: #aaa;">Weekly Analytics Report</p>
+                {stale_html}
+                {high_priority_html}
+                {deletable_html}
+                {domains_html}
+                {lists_html}
+                {recs_html}
+
+                <details class="expand-section">
+                    <summary>View Full Detailed Report</summary>
+                    <div class="report-content">
+                        {rendered_markdown}
+                    </div>
+                </details>
+            </div>
+
+            <div class="footer">
+                <p>Generated by <span class="brand">To Do AI Task Manager</span></p>
+                <p class="tagline">Powered by AI - Automated Weekly Analytics</p>
+            </div>
         </div>
     </div>
 </body>
