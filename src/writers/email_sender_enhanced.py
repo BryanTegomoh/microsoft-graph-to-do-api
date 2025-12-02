@@ -275,10 +275,10 @@ class EmailSenderEnhanced:
             created_str = item['task'].get('created_at')
             if created_str:
                 try:
-                    created = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
+                    created = datetime.fromisoformat(created_str.replace('Z', '+00:00')).replace(tzinfo=None)
                     # Only include if old AND no due date set (not being tracked)
                     if created < threshold_date and not item['task'].get('due_date'):
-                        item['_age_days'] = (datetime.now() - created.replace(tzinfo=None)).days
+                        item['_age_days'] = (datetime.now() - created).days
                         aging.append(item)
                 except (ValueError, AttributeError):
                     pass
@@ -321,6 +321,9 @@ class EmailSenderEnhanced:
             try:
                 last_brief_str = tracking_file.read_text().strip()
                 last_brief_time = datetime.fromisoformat(last_brief_str)
+                # Ensure it's timezone-naive for comparison
+                if last_brief_time.tzinfo is not None:
+                    last_brief_time = last_brief_time.replace(tzinfo=None)
             except (ValueError, IOError):
                 pass
 
@@ -791,7 +794,7 @@ class EmailSenderEnhanced:
 """
 
         # Quick Wins Section
-        quick_wins = self._get_quick_wins(ranked_tasks)
+        quick_wins = self._get_quick_wins(top_tasks)
         if quick_wins:
             html += """
         <div class="section" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-left: 4px solid #28a745;">
@@ -814,7 +817,7 @@ class EmailSenderEnhanced:
 """
 
         # Aging Tasks Alert
-        aging_tasks = self._get_aging_tasks(ranked_tasks)
+        aging_tasks = self._get_aging_tasks(top_tasks)
         if aging_tasks:
             html += f"""
         <div class="section" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-left: 4px solid #ffc107;">
@@ -836,7 +839,7 @@ class EmailSenderEnhanced:
 """
 
         # New Tasks Since Last Brief
-        new_tasks, total_new = self._get_new_tasks_since_last_brief(ranked_tasks)
+        new_tasks, total_new = self._get_new_tasks_since_last_brief(top_tasks)
         if new_tasks:
             html += f"""
         <div class="section" style="background: linear-gradient(135deg, #e7f3ff 0%, #cce5ff 100%); border-left: 4px solid #007bff;">
@@ -860,7 +863,7 @@ class EmailSenderEnhanced:
 
         # Update tracking files
         self._update_brief_timestamp()
-        completion_stats = self._get_completion_stats(len(ranked_tasks))
+        completion_stats = self._get_completion_stats(len(top_tasks))
 
         # Footer with Completion Streak
         week_completed = completion_stats.get('weekly_completed', 0)

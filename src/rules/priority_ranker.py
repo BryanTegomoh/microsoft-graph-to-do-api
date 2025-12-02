@@ -20,11 +20,12 @@ class PriorityRanker:
         """
         # Default weights (must sum to 1.0)
         # Optimized for research/reading list use case with few deadlines
+        # Starring (importance) given higher weight for user control
         self.weights = weights or {
-            "ai_priority": 0.50,      # AI-suggested priority (dominant factor)
+            "ai_priority": 0.40,      # AI-suggested priority
             "deadline_urgency": 0.10,  # Based on due date (low - rarely set)
             "recency": 0.20,           # How recently created (newer = more relevant)
-            "importance": 0.15,        # User-set importance (manual control)
+            "importance": 0.25,        # User-set importance (starring) - increased for control
             "category": 0.05,          # Task category weight (minimal)
         }
 
