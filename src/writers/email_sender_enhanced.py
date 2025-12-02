@@ -6,9 +6,11 @@ from html import escape
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Optional
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
 from collections import Counter
+import json
+import re
 
 import markdown
 
@@ -162,6 +164,228 @@ class EmailSenderEnhanced:
         else:
             return f"{total_tasks} tasks across {len(category_counts)} categories. Prioritize {top_category} work and tackle high-value items first."
 
+    def _get_time_of_day(self) -> str:
+        """Get current time of day: morning, afternoon, or evening."""
+        hour = datetime.now().hour
+        if hour < 12:
+            return "morning"
+        elif hour < 17:
+            return "afternoon"
+        else:
+            return "evening"
+
+    def _generate_time_optimized_insight(self, top_tasks: List[Dict]) -> str:
+        """Generate insight optimized for time of day."""
+        if not top_tasks:
+            return "Your task list is clear - great time to plan ahead or tackle long-term projects!"
+
+        time_of_day = self._get_time_of_day()
+        total_tasks = len(top_tasks)
+        high_priority = sum(1 for t in top_tasks if t['priority_score'] >= 80)
+
+        # Collect categories
+        categories = [t['analysis'].get('category', 'other') for t in top_tasks[:10]]
+        category_counts = Counter(categories)
+
+        # Time-specific insights
+        if time_of_day == "morning":
+            # Emphasize high-energy tasks
+            apply_count = category_counts.get('apply', 0)
+            contact_count = category_counts.get('contact', 0)
+            if apply_count > 0:
+                return f"Good morning! You have {apply_count} application(s) to tackle. Morning energy is perfect for these high-stakes tasks."
+            elif contact_count > 0:
+                return f"Good morning! {contact_count} outreach task(s) await. People check emails early - reach out now!"
+            elif high_priority >= 3:
+                return f"Busy morning ahead with {high_priority} high-priority tasks. Start with the hardest one while you're fresh."
+            else:
+                return f"Light morning with {total_tasks} tasks. Great opportunity for deep work or planning."
+
+        elif time_of_day == "afternoon":
+            # Emphasize research/deep work
+            research_count = category_counts.get('research', 0)
+            reading_count = category_counts.get('reading', 0)
+            if research_count > 0:
+                return f"Afternoon focus time: {research_count} research task(s) ready. Block distractions and dive deep."
+            elif reading_count > 0:
+                return f"Post-lunch slump? {reading_count} reading task(s) could be a good mental shift."
+            else:
+                return f"Afternoon check-in: {total_tasks} tasks remaining. Prioritize what moves the needle most."
+
+        else:  # evening
+            # Preview tomorrow
+            due_tomorrow = self._get_due_tomorrow(top_tasks)
+            if due_tomorrow:
+                return f"Evening preview: {len(due_tomorrow)} task(s) due tomorrow. Review and prep tonight for a smooth start."
+            elif high_priority >= 2:
+                return f"Evening wrap-up: {high_priority} high-priority items still pending. Plan your attack for tomorrow morning."
+            else:
+                return f"Evening review: {total_tasks} tasks on deck. Rest up - tomorrow is a new opportunity."
+
+    def _get_due_today(self, top_tasks: List[Dict]) -> List[Dict]:
+        """Get tasks due today."""
+        today = datetime.now().date()
+        due_today = []
+        for item in top_tasks:
+            due_date_str = item['task'].get('due_date')
+            if due_date_str:
+                try:
+                    due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00')).date()
+                    if due_date == today:
+                        due_today.append(item)
+                except (ValueError, AttributeError):
+                    pass
+        return due_today
+
+    def _get_due_tomorrow(self, top_tasks: List[Dict]) -> List[Dict]:
+        """Get tasks due tomorrow."""
+        tomorrow = (datetime.now() + timedelta(days=1)).date()
+        due_tomorrow = []
+        for item in top_tasks:
+            due_date_str = item['task'].get('due_date')
+            if due_date_str:
+                try:
+                    due_date = datetime.fromisoformat(due_date_str.replace('Z', '+00:00')).date()
+                    if due_date == tomorrow:
+                        due_tomorrow.append(item)
+                except (ValueError, AttributeError):
+                    pass
+        return due_tomorrow
+
+    def _get_quick_wins(self, top_tasks: List[Dict], max_minutes: int = 15) -> List[Dict]:
+        """Get tasks that can be completed quickly (≤15 min by default)."""
+        quick_wins = []
+        for item in top_tasks:
+            est_time = item['analysis'].get('estimated_time_minutes', 999)
+            if isinstance(est_time, (int, float)) and est_time <= max_minutes:
+                quick_wins.append(item)
+        # Sort by priority score
+        return sorted(quick_wins, key=lambda x: x['priority_score'], reverse=True)[:5]
+
+    def _get_category_breakdown(self, top_tasks: List[Dict]) -> Dict[str, int]:
+        """Get count of tasks by category."""
+        categories = [t['analysis'].get('category', 'other') for t in top_tasks]
+        return dict(Counter(categories).most_common())
+
+    def _get_aging_tasks(self, top_tasks: List[Dict], days_threshold: int = 7) -> List[Dict]:
+        """Get tasks older than threshold that might need attention."""
+        threshold_date = datetime.now() - timedelta(days=days_threshold)
+        aging = []
+        for item in top_tasks:
+            created_str = item['task'].get('created_at')
+            if created_str:
+                try:
+                    created = datetime.fromisoformat(created_str.replace('Z', '+00:00'))
+                    # Only include if old AND no due date set (not being tracked)
+                    if created < threshold_date and not item['task'].get('due_date'):
+                        item['_age_days'] = (datetime.now() - created.replace(tzinfo=None)).days
+                        aging.append(item)
+                except (ValueError, AttributeError):
+                    pass
+        return sorted(aging, key=lambda x: x.get('_age_days', 0), reverse=True)[:5]
+
+    def _get_expiring_links(self, top_tasks: List[Dict]) -> List[Dict]:
+        """Get tasks with URLs that likely have expiration dates (jobs, events)."""
+        expiring_patterns = [
+            r'linkedin\.com/jobs',
+            r'indeed\.com',
+            r'greenhouse\.io',
+            r'lever\.co',
+            r'workday\.com',
+            r'eventbrite\.com',
+            r'meetup\.com',
+            r'zoom\.us.*webinar',
+            r'careers\.',
+            r'/jobs/',
+            r'/apply',
+        ]
+        pattern = '|'.join(expiring_patterns)
+
+        expiring = []
+        for item in top_tasks:
+            urls = item['task'].get('urls', [])
+            for url in urls:
+                if re.search(pattern, url, re.IGNORECASE):
+                    expiring.append(item)
+                    break
+        return expiring[:5]
+
+    def _get_new_tasks_since_last_brief(self, top_tasks: List[Dict]) -> Tuple[List[Dict], int]:
+        """Get tasks created since last brief was sent."""
+        tracking_file = Path(Config.OUTPUT_DIR) / "last_brief_time.txt"
+        new_tasks = []
+
+        # Read last brief time
+        last_brief_time = None
+        if tracking_file.exists():
+            try:
+                last_brief_str = tracking_file.read_text().strip()
+                last_brief_time = datetime.fromisoformat(last_brief_str)
+            except (ValueError, IOError):
+                pass
+
+        # If no tracking, return empty (first run)
+        if not last_brief_time:
+            return [], 0
+
+        # Find tasks created after last brief
+        for item in top_tasks:
+            created_str = item['task'].get('created_at')
+            if created_str:
+                try:
+                    created = datetime.fromisoformat(created_str.replace('Z', '+00:00')).replace(tzinfo=None)
+                    if created > last_brief_time:
+                        new_tasks.append(item)
+                except (ValueError, AttributeError):
+                    pass
+
+        return new_tasks[:5], len(new_tasks)
+
+    def _update_brief_timestamp(self):
+        """Update the last brief timestamp."""
+        tracking_file = Path(Config.OUTPUT_DIR) / "last_brief_time.txt"
+        tracking_file.parent.mkdir(parents=True, exist_ok=True)
+        tracking_file.write_text(datetime.now().isoformat())
+
+    def _get_completion_stats(self, current_task_count: int) -> Dict:
+        """Track and return completion statistics."""
+        stats_file = Path(Config.OUTPUT_DIR) / "completion_stats.json"
+
+        # Load existing stats
+        stats = {"weekly_completed": 0, "last_task_count": 0, "week_start": None, "history": []}
+        if stats_file.exists():
+            try:
+                stats = json.loads(stats_file.read_text())
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        # Check if we need to reset for new week
+        today = datetime.now()
+        week_start_str = stats.get("week_start")
+        if week_start_str:
+            week_start = datetime.fromisoformat(week_start_str)
+            # Reset if more than 7 days
+            if (today - week_start).days >= 7:
+                stats["weekly_completed"] = 0
+                stats["week_start"] = today.isoformat()
+        else:
+            stats["week_start"] = today.isoformat()
+
+        # Calculate completions (tasks that disappeared from list)
+        last_count = stats.get("last_task_count", current_task_count)
+        if last_count > current_task_count:
+            completed = last_count - current_task_count
+            stats["weekly_completed"] = stats.get("weekly_completed", 0) + completed
+
+        # Update last count
+        stats["last_task_count"] = current_task_count
+
+        # Save stats
+        stats_file.parent.mkdir(parents=True, exist_ok=True)
+        stats_file.write_text(json.dumps(stats, indent=2))
+
+        return stats
+
     def _create_text_version(self, top_tasks: List[Dict], full_content: str) -> str:
         """Create plain text email version with morning insight."""
         lines = []
@@ -200,9 +424,25 @@ class EmailSenderEnhanced:
         return "\n".join(lines)
 
     def _create_html_version_enhanced(self, top_tasks: List[Dict], markdown_content: str) -> str:
-        """Create enhanced HTML email with Morning Insight and Quick Actions."""
-        # Generate morning insight
-        morning_insight = self._generate_morning_insight(top_tasks)
+        """Create enhanced HTML email with Morning Insight, Quick Actions, and new sections."""
+        # Generate time-optimized insight (replaces morning insight)
+        time_insight = self._generate_time_optimized_insight(top_tasks)
+        time_of_day = self._get_time_of_day()
+        time_label = {"morning": "Morning", "afternoon": "Afternoon", "evening": "Evening"}.get(time_of_day, "Daily")
+        time_emoji = {"morning": "☀️", "afternoon": "🌤️", "evening": "🌙"}.get(time_of_day, "📋")
+
+        # Gather all the new data
+        due_today = self._get_due_today(top_tasks)
+        due_tomorrow = self._get_due_tomorrow(top_tasks)
+        quick_wins = self._get_quick_wins(top_tasks)
+        category_breakdown = self._get_category_breakdown(top_tasks)
+        aging_tasks = self._get_aging_tasks(top_tasks)
+        expiring_links = self._get_expiring_links(top_tasks)
+        new_tasks, new_task_count = self._get_new_tasks_since_last_brief(top_tasks)
+        completion_stats = self._get_completion_stats(len(top_tasks))
+
+        # Update tracking timestamp
+        self._update_brief_timestamp()
 
         html = f"""
 <!DOCTYPE html>
@@ -231,12 +471,18 @@ class EmailSenderEnhanced:
             padding-bottom: 10px;
             margin-bottom: 20px;
         }}
+        h2 {{
+            color: #2c3e50;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }}
         .insight-box {{
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 20px;
             border-radius: 8px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }}
         .insight-box h3 {{
@@ -250,6 +496,79 @@ class EmailSenderEnhanced:
             font-weight: 500;
             line-height: 1.5;
         }}
+        .stats-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }}
+        .stat-box {{
+            flex: 1;
+            min-width: 80px;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }}
+        .stat-box .number {{
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }}
+        .stat-box .label {{
+            font-size: 11px;
+            color: #777;
+            text-transform: uppercase;
+        }}
+        .alert-section {{
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }}
+        .alert-section.urgent {{
+            background: #f8d7da;
+            border-color: #dc3545;
+        }}
+        .alert-section.success {{
+            background: #d4edda;
+            border-color: #28a745;
+        }}
+        .alert-section.info {{
+            background: #d1ecf1;
+            border-color: #17a2b8;
+        }}
+        .alert-section h4 {{
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }}
+        .alert-section ul {{
+            margin: 0;
+            padding-left: 20px;
+        }}
+        .alert-section li {{
+            margin: 5px 0;
+            font-size: 13px;
+        }}
+        .category-pills {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }}
+        .category-pill {{
+            background: #e9ecef;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #495057;
+        }}
+        .category-pill .count {{
+            font-weight: bold;
+            color: #2c3e50;
+        }}
         .task {{
             background-color: #f8f9fa;
             padding: 15px;
@@ -258,7 +577,7 @@ class EmailSenderEnhanced:
             border-radius: 4px;
         }}
         .task-title {{
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #2c3e50;
             margin-bottom: 8px;
@@ -269,9 +588,9 @@ class EmailSenderEnhanced:
             color: white;
             padding: 2px 8px;
             border-radius: 12px;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: bold;
-            margin-right: 10px;
+            margin-right: 8px;
         }}
         .task-score.high {{
             background-color: #e74c3c;
@@ -285,6 +604,7 @@ class EmailSenderEnhanced:
         .task-detail {{
             margin: 5px 0;
             padding-left: 10px;
+            font-size: 13px;
         }}
         .task-detail strong {{
             color: #555;
@@ -305,21 +625,6 @@ class EmailSenderEnhanced:
             color: #333;
             font-size: 13px;
         }}
-        .action-btn.complete {{
-            background-color: #d4edda;
-            border-color: #c3e6cb;
-            color: #155724;
-        }}
-        .action-btn.snooze {{
-            background-color: #fff3cd;
-            border-color: #ffeaa7;
-            color: #856404;
-        }}
-        .action-btn.priority {{
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
-            color: #721c24;
-        }}
         .footer {{
             margin-top: 30px;
             padding-top: 20px;
@@ -327,6 +632,15 @@ class EmailSenderEnhanced:
             text-align: center;
             color: #777;
             font-size: 14px;
+        }}
+        .completion-badge {{
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            margin-top: 10px;
         }}
     </style>
 </head>
@@ -336,11 +650,72 @@ class EmailSenderEnhanced:
         <p style="color: #777; font-size: 14px;">{datetime.now().strftime('%A, %B %d, %Y')}</p>
 
         <div class="insight-box">
-            <h3>☀️ Morning Insight</h3>
-            <p>{morning_insight}</p>
+            <h3>{time_emoji} {time_label} Insight</h3>
+            <p>{time_insight}</p>
         </div>
 
-        <h2>Top Priorities for Today</h2>
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="number">{len(top_tasks)}</div>
+                <div class="label">Total Tasks</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" style="color: #dc3545;">{len(due_today)}</div>
+                <div class="label">Due Today</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" style="color: #28a745;">{len(quick_wins)}</div>
+                <div class="label">Quick Wins</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" style="color: #17a2b8;">{new_task_count}</div>
+                <div class="label">New Tasks</div>
+            </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="category-pills">
+"""
+        for cat, count in list(category_breakdown.items())[:6]:
+            html += f'            <span class="category-pill"><span class="count">{count}</span> {cat}</span>\n'
+
+        html += """        </div>
+"""
+
+        # Due Today/Tomorrow Section
+        if due_today or due_tomorrow:
+            html += """
+        <div class="alert-section urgent">
+            <h4>📅 Due Soon</h4>
+            <ul>
+"""
+            for item in due_today[:3]:
+                title = escape(item['task']['title'][:50])
+                html += f'                <li><strong>TODAY:</strong> {title}</li>\n'
+            for item in due_tomorrow[:3]:
+                title = escape(item['task']['title'][:50])
+                html += f'                <li><strong>Tomorrow:</strong> {title}</li>\n'
+            html += """            </ul>
+        </div>
+"""
+
+        # Expiring Links Alert
+        if expiring_links:
+            html += """
+        <div class="alert-section">
+            <h4>⏰ May Expire Soon (Job/Event Links)</h4>
+            <ul>
+"""
+            for item in expiring_links[:3]:
+                title = escape(item['task']['title'][:50])
+                html += f'                <li>{title}</li>\n'
+            html += """            </ul>
+        </div>
+"""
+
+        html += """
+        <h2>Top Priorities</h2>
 """
 
         for i, item in enumerate(top_tasks[:10], 1):
@@ -415,12 +790,97 @@ class EmailSenderEnhanced:
         </div>
 """
 
-        html += """
+        # Quick Wins Section
+        quick_wins = self._get_quick_wins(ranked_tasks)
+        if quick_wins:
+            html += """
+        <div class="section" style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-left: 4px solid #28a745;">
+            <h3 style="color: #155724; margin-top: 0;">⚡ Quick Wins (≤15 min)</h3>
+            <p style="color: #155724; font-size: 14px; margin-bottom: 15px;">Knock these out quickly between meetings!</p>
+"""
+            for qw in quick_wins[:5]:
+                task = qw['task']
+                analysis = qw['analysis']
+                est_time = analysis.get('estimated_time_minutes', 15)
+                title = escape(task.get('title', '')[:60])
+                html += f"""
+            <div style="background: white; padding: 10px 15px; margin: 8px 0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #333;">{title}</span>
+                <span style="background: #28a745; color: white; padding: 3px 8px; border-radius: 12px; font-size: 12px;">{est_time} min</span>
+            </div>
+"""
+            html += """
+        </div>
+"""
+
+        # Aging Tasks Alert
+        aging_tasks = self._get_aging_tasks(ranked_tasks)
+        if aging_tasks:
+            html += f"""
+        <div class="section" style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-left: 4px solid #ffc107;">
+            <h3 style="color: #856404; margin-top: 0;">⏰ Aging Tasks ({len(aging_tasks)} tasks)</h3>
+            <p style="color: #856404; font-size: 14px; margin-bottom: 15px;">These tasks are 7+ days old without due dates - consider taking action or archiving</p>
+"""
+            for at in aging_tasks[:5]:
+                task = at['task']
+                age_days = at.get('_age_days', 7)
+                title = escape(task.get('title', '')[:55])
+                html += f"""
+            <div style="background: white; padding: 10px 15px; margin: 8px 0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #333;">{title}</span>
+                <span style="background: #ffc107; color: #333; padding: 3px 8px; border-radius: 12px; font-size: 12px;">{age_days}d old</span>
+            </div>
+"""
+            html += """
+        </div>
+"""
+
+        # New Tasks Since Last Brief
+        new_tasks, total_new = self._get_new_tasks_since_last_brief(ranked_tasks)
+        if new_tasks:
+            html += f"""
+        <div class="section" style="background: linear-gradient(135deg, #e7f3ff 0%, #cce5ff 100%); border-left: 4px solid #007bff;">
+            <h3 style="color: #004085; margin-top: 0;">🆕 New Since Last Brief ({len(new_tasks)} tasks)</h3>
+"""
+            for nt in new_tasks[:5]:
+                task = nt['task']
+                title = escape(task.get('title', '')[:60])
+                html += f"""
+            <div style="background: white; padding: 10px 15px; margin: 8px 0; border-radius: 6px;">
+                <span style="color: #333;">{title}</span>
+            </div>
+"""
+            if len(new_tasks) > 5:
+                html += f"""
+            <p style="color: #004085; font-size: 13px; margin-top: 10px;">...and {len(new_tasks) - 5} more new tasks</p>
+"""
+            html += """
+        </div>
+"""
+
+        # Update tracking files
+        self._update_brief_timestamp()
+        completion_stats = self._get_completion_stats(len(ranked_tasks))
+
+        # Footer with Completion Streak
+        week_completed = completion_stats.get('weekly_completed', 0)
+        streak_badge = ""
+        if week_completed >= 10:
+            streak_badge = "🔥 On Fire!"
+        elif week_completed >= 5:
+            streak_badge = "💪 Great Progress!"
+        elif week_completed > 0:
+            streak_badge = "👍 Keep Going!"
+
+        html += f"""
         <div class="footer">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                <p style="margin: 0; font-size: 16px;"><strong>{week_completed} tasks completed this week</strong> {streak_badge}</p>
+            </div>
             <p>📊 Full detailed brief is available in your output folder</p>
             <p style="margin-top: 15px;">
                 <em>Generated by Microsoft To Do AI Task Manager</em><br>
-                Powered by AI • Automated Daily
+                Powered by AI • Automated 3x Daily (8am, 2pm, 8pm)
             </p>
         </div>
     </div>
