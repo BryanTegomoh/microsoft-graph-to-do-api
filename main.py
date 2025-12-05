@@ -1,5 +1,6 @@
 """Main orchestration script for Microsoft To Do AI Task Manager."""
 
+import argparse
 import logging
 import sys
 from pathlib import Path
@@ -78,6 +79,12 @@ def remove_duplicate_urls(todo_client: ToDoClient, parsed_tasks: list) -> int:
 
 def main():
     """Main execution flow."""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Microsoft To Do AI Task Manager")
+    parser.add_argument("--force-weekly", action="store_true",
+                        help="Force generation of weekly report regardless of day")
+    args = parser.parse_args()
+
     # Setup logging
     setup_logging()
     logger.info("=== Microsoft To Do AI Task Manager ===")
@@ -251,8 +258,8 @@ def main():
             today = datetime.now()
             is_report_day = Config.WEEKLY_REPORT_DAY == today.strftime("%A").lower()
 
-            # Always generate on Sundays, or force generate if it's been a week
-            if is_report_day or today.weekday() == 6:  # 6 = Sunday
+            # Always generate on Sundays, or force generate via command line
+            if is_report_day or today.weekday() == 6 or args.force_weekly:  # 6 = Sunday
                 logger.info("Step 10: Generating weekly analytics report")
                 # Pass parsed_tasks for live analysis (stale tasks, URL domains, list breakdown)
                 trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR, tasks=parsed_tasks)

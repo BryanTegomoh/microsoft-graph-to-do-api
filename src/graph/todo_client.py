@@ -46,6 +46,68 @@ class ToDoClient:
         logger.info(f"Found {len(lists)} task lists")
         return lists
 
+    def create_list(self, display_name: str) -> Dict:
+        """
+        Create a new task list.
+
+        Args:
+            display_name: The name for the new list.
+
+        Returns:
+            Created list dictionary with id and other metadata.
+        """
+        url = f"{self.base_url}/me/todo/lists"
+
+        logger.info(f"Creating new list: {display_name}")
+        response = requests.post(url, headers=self.headers, json={"displayName": display_name})
+        response.raise_for_status()
+
+        created_list = response.json()
+        logger.info(f"Created list '{display_name}' with id: {created_list.get('id')}")
+        return created_list
+
+    def delete_list(self, list_id: str) -> bool:
+        """
+        Delete a task list.
+
+        Args:
+            list_id: The ID of the list to delete.
+
+        Returns:
+            True if deletion was successful.
+        """
+        url = f"{self.base_url}/me/todo/lists/{list_id}"
+
+        logger.info(f"Deleting list {list_id}")
+        response = requests.delete(url, headers=self.headers)
+
+        if response.status_code == 204:
+            logger.info(f"Successfully deleted list {list_id}")
+            return True
+        else:
+            logger.error(f"Failed to delete list {list_id}: {response.status_code}")
+            response.raise_for_status()
+            return False
+
+    def update_list(self, list_id: str, display_name: str) -> Dict:
+        """
+        Update a task list's name.
+
+        Args:
+            list_id: The ID of the list to update.
+            display_name: The new name for the list.
+
+        Returns:
+            Updated list dictionary.
+        """
+        url = f"{self.base_url}/me/todo/lists/{list_id}"
+
+        logger.info(f"Updating list {list_id} to: {display_name}")
+        response = requests.patch(url, headers=self.headers, json={"displayName": display_name})
+        response.raise_for_status()
+
+        return response.json()
+
     def get_tasks(self, list_id: str, filter_query: Optional[str] = None) -> List[Dict]:
         """
         Get tasks from a specific list (handles pagination).
