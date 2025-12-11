@@ -324,6 +324,19 @@ def main():
             title = task['title'].encode('ascii', 'replace').decode('ascii')
             print(f"{i}. [{score:.1f}] {title}")
 
+        # Print 10 random rediscoveries (tasks outside top 20)
+        import random
+        remaining_tasks = ranked_tasks[20:]
+        if len(remaining_tasks) >= 10:
+            random_picks = random.sample(remaining_tasks, 10)
+            print("\n=== 10 Random Rediscoveries ===")
+            print("(Tasks you may have forgotten - different each run)\n")
+            for i, item in enumerate(random_picks, 1):
+                task = item["task"]
+                score = item["priority_score"]
+                title = task['title'].encode('ascii', 'replace').decode('ascii')
+                print(f"{i}. [{score:.1f}] {title}")
+
         print(f"\nFull brief available at: {brief_path}\n")
 
     except Exception as e:

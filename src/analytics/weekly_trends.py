@@ -354,6 +354,64 @@ class WeeklyTrendsAnalyzer:
             "avg_age_days": round(sum(t["age_days"] for t in stale_tasks) / len(stale_tasks), 1) if stale_tasks else 0,
         }
 
+    def _get_random_forgotten_tasks(self, count: int = 10, min_age_days: int = 14) -> Dict:
+        """
+        Get random tasks that may have been forgotten.
+
+        Selects from tasks that are:
+        - At least min_age_days old
+        - Not starred/high importance
+        - Randomly sampled each time (different every run)
+
+        Args:
+            count: Number of random tasks to return.
+            min_age_days: Minimum age in days to consider a task "forgotten".
+
+        Returns:
+            Dictionary with random forgotten tasks.
+        """
+        import random
+
+        if not self.tasks:
+            return {"random_tasks": [], "pool_size": 0}
+
+        now = datetime.now()
+        eligible_tasks = []
+
+        for task in self.tasks:
+            # Skip high-importance tasks (user is already tracking these)
+            if task.get("importance", "normal").lower() == "high":
+                continue
+
+            created_at = task.get("created_at")
+            if created_at:
+                try:
+                    if isinstance(created_at, str):
+                        created_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        created_date = created_date.replace(tzinfo=None)
+                    else:
+                        created_date = created_at
+
+                    age_days = (now - created_date).days
+                    if age_days >= min_age_days:
+                        eligible_tasks.append({
+                            "title": task.get("title", "Unknown")[:100],
+                            "age_days": age_days,
+                            "list_name": task.get("list_name", "Unknown"),
+                            "id": task.get("id"),
+                        })
+                except (ValueError, TypeError):
+                    pass
+
+        # Random sample
+        sample_size = min(count, len(eligible_tasks))
+        random_picks = random.sample(eligible_tasks, sample_size) if eligible_tasks else []
+
+        return {
+            "random_tasks": random_picks,
+            "pool_size": len(eligible_tasks),
+        }
+
     def _analyze_deletable_tasks(self) -> Dict:
         """
         Identify tasks that are safe to delete.
@@ -766,6 +824,7 @@ class WeeklyTrendsAnalyzer:
         analytics["list_breakdown"] = self._analyze_lists()
         analytics["velocity"] = self._calculate_velocity(briefs)
         analytics["theme_comparison"] = self._compare_themes_to_last_week(analytics.get("themes", {}))
+        analytics["random_forgotten"] = self._get_random_forgotten_tasks(count=10, min_age_days=14)
         analytics["recommendations"] = self._generate_action_recommendations(analytics)
 
         # Build the report
@@ -881,6 +940,20 @@ class WeeklyTrendsAnalyzer:
             ])
             for task in deletable.get("deletable_tasks", [])[:10]:
                 report_lines.append(f"- {task['title']} — *{task['reason']}*")
+            report_lines.append("")
+
+        # Random Forgotten Tasks (different each week)
+        random_forgotten = analytics.get("random_forgotten", {})
+        if random_forgotten.get("random_tasks"):
+            report_lines.extend([
+                f"## Random Rediscoveries",
+                f"",
+                f"*10 random tasks from your backlog ({random_forgotten['pool_size']} eligible tasks 14+ days old)*",
+                f"*These change each week to help surface forgotten items*",
+                f"",
+            ])
+            for task in random_forgotten.get("random_tasks", []):
+                report_lines.append(f"- [{task['age_days']} days] {task['title']}")
             report_lines.append("")
 
         # URL Domain Analysis
