@@ -20,12 +20,12 @@ class PriorityRanker:
         """
         # Default weights (must sum to 1.0)
         # Optimized for research/reading list use case with few deadlines
-        # Starring (importance) given higher weight for user control
+        # Recency and importance (starring) prioritized for user control
         self.weights = weights or {
-            "ai_priority": 0.40,      # AI-suggested priority
-            "deadline_urgency": 0.10,  # Based on due date (low - rarely set)
-            "recency": 0.20,           # How recently created (newer = more relevant)
-            "importance": 0.25,        # User-set importance (starring) - increased for control
+            "ai_priority": 0.25,      # AI-suggested priority (reduced)
+            "deadline_urgency": 0.05,  # Based on due date (minimal - rarely set)
+            "recency": 0.30,           # How recently created (increased - newer = more relevant)
+            "importance": 0.35,        # User-set importance (starring) - highest for control
             "category": 0.05,          # Task category weight (minimal)
         }
 
@@ -113,6 +113,7 @@ class PriorityRanker:
         Score based on how recently the task was created (0-100).
 
         Newer tasks get higher scores (might be more relevant).
+        More aggressive scoring for very recent tasks.
         """
         created_str = task.get("created_at")
         if not created_str:
@@ -126,14 +127,20 @@ class PriorityRanker:
 
             if days_old == 0:
                 return 100  # Created today
+            elif days_old == 1:
+                return 95   # Created yesterday
             elif days_old <= 3:
-                return 80   # Created in last 3 days
+                return 85   # Created in last 3 days
             elif days_old <= 7:
-                return 60   # Created this week
+                return 70   # Created this week
+            elif days_old <= 14:
+                return 55   # Created in last 2 weeks
             elif days_old <= 30:
                 return 40   # Created this month
+            elif days_old <= 60:
+                return 25   # Created in last 2 months
             else:
-                return 20   # Older
+                return 15   # Older
 
         except Exception as e:
             logger.warning(f"Error parsing created date '{created_str}': {e}")
@@ -144,16 +151,18 @@ class PriorityRanker:
         Score based on user-set importance (0-100).
 
         Microsoft To Do importance levels: low, normal, high
+        Starred tasks (high importance) get maximum score.
         """
         importance = task.get("importance", "normal").lower()
 
+        # Wider spread to make starred tasks stand out significantly
         importance_map = {
-            "high": 100,
-            "normal": 50,
-            "low": 25,
+            "high": 100,   # Starred - maximum priority
+            "normal": 40,  # Default - moderate
+            "low": 15,     # Explicitly deprioritized
         }
 
-        return importance_map.get(importance, 50)
+        return importance_map.get(importance, 40)
 
     def _score_category(self, analysis: Dict) -> float:
         """

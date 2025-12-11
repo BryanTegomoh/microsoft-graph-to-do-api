@@ -256,10 +256,11 @@ def main():
         if Config.GENERATE_WEEKLY_REPORT:
             from datetime import datetime
             today = datetime.now()
-            is_report_day = Config.WEEKLY_REPORT_DAY == today.strftime("%A").lower()
+            today_name = today.strftime("%A").lower()
+            is_report_day = today_name in Config.WEEKLY_REPORT_DAYS
 
-            # Always generate on Sundays, or force generate via command line
-            if is_report_day or today.weekday() == 6 or args.force_weekly:  # 6 = Sunday
+            # Generate on configured days, or force generate via command line
+            if is_report_day or args.force_weekly:
                 logger.info("Step 10: Generating weekly analytics report")
                 # Pass parsed_tasks for live analysis (stale tasks, URL domains, list breakdown)
                 trends_analyzer = WeeklyTrendsAnalyzer(Config.OUTPUT_DIR, tasks=parsed_tasks)
@@ -303,7 +304,7 @@ def main():
                     else:
                         logger.warning("Failed to send weekly digest email")
             else:
-                logger.info(f"Step 10: Skipping weekly report (generated on {Config.WEEKLY_REPORT_DAY}s)")
+                logger.info(f"Step 10: Skipping weekly report (generated on {', '.join(Config.WEEKLY_REPORT_DAYS)})")
         else:
             logger.info("Step 10: Weekly analytics disabled (set GENERATE_WEEKLY_REPORT=true to enable)")
 
@@ -314,9 +315,9 @@ def main():
         logger.info(f"This week: {len(categorized['this_week'])}")
         logger.info(f"Brief: {brief_path}")
 
-        # Print top 5 priorities
-        print("\n=== Top 5 Priorities for Today ===\n")
-        for i, item in enumerate(ranked_tasks[:5], 1):
+        # Print top 20 priorities
+        print("\n=== Top 20 Priorities for Today ===\n")
+        for i, item in enumerate(ranked_tasks[:20], 1):
             task = item["task"]
             score = item["priority_score"]
             # Encode/decode to handle Unicode on Windows console

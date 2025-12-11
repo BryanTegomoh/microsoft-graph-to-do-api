@@ -11,8 +11,8 @@ echo [%date% %time%] Starting weekly report... >> output\task_manager.log
 REM Activate virtual environment
 call venv\Scripts\activate.bat
 
-REM Run the main script with weekly flag and log output
-python main.py --weekly >> output\task_manager.log 2>&1
+REM Run the main script with force-weekly flag and log output
+python main.py --force-weekly >> output\task_manager.log 2>&1
 
 REM Deactivate virtual environment
 deactivate

@@ -54,7 +54,8 @@ class Config:
 
     # Weekly Analytics Configuration
     GENERATE_WEEKLY_REPORT = os.getenv("GENERATE_WEEKLY_REPORT", "true").lower() == "true"
-    WEEKLY_REPORT_DAY = os.getenv("WEEKLY_REPORT_DAY", "sunday").lower()  # Day to generate weekly report
+    # Days to generate weekly report (comma-separated, e.g., "sunday,wednesday,friday")
+    WEEKLY_REPORT_DAYS = [d.strip().lower() for d in os.getenv("WEEKLY_REPORT_DAYS", "sunday,wednesday,friday").split(",")]
 
     # Graph API Endpoints
     GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
