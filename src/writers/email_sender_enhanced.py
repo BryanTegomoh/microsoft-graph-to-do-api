@@ -406,7 +406,7 @@ class EmailSenderEnhanced:
         lines.append("TOP PRIORITIES FOR TODAY")
         lines.append("")
 
-        for i, item in enumerate(top_tasks[:10], 1):
+        for i, item in enumerate(top_tasks[:20], 1):
             task = item['task']
             analysis = item['analysis']
             score = item['priority_score']
@@ -416,6 +416,28 @@ class EmailSenderEnhanced:
             lines.append(f"   Action: {analysis.get('suggested_action', 'N/A')}")
             lines.append(f"   Time: {analysis.get('estimated_time_minutes', 'N/A')} minutes")
             lines.append("")
+
+        # Add Random Rediscoveries
+        lines.append("=" * 60)
+        lines.append("")
+        lines.append("RANDOM REDISCOVERIES")
+        lines.append("(Tasks you may have forgotten - different each run)")
+        lines.append("")
+
+        import random
+        remaining_tasks = top_tasks[20:]
+        if len(remaining_tasks) >= 10:
+            random_picks = random.sample(remaining_tasks, 10)
+            for i, item in enumerate(random_picks, 1):
+                task = item['task']
+                analysis = item['analysis']
+                score = item['priority_score']
+
+                lines.append(f"{i}. [{score:.1f}] {task['title']}")
+                lines.append(f"   Summary: {analysis.get('summary', 'N/A')}")
+                lines.append(f"   Action: {analysis.get('suggested_action', 'N/A')}")
+                lines.append(f"   Time: {analysis.get('estimated_time_minutes', 'N/A')} minutes")
+                lines.append("")
 
         lines.append("-" * 60)
         lines.append("")
@@ -718,10 +740,10 @@ class EmailSenderEnhanced:
 """
 
         html += """
-        <h2>Top Priorities</h2>
+        <h2>Top 20 Priorities</h2>
 """
 
-        for i, item in enumerate(top_tasks[:10], 1):
+        for i, item in enumerate(top_tasks[:20], 1):
             task = item['task']
             analysis = item['analysis']
             score = item['priority_score']
@@ -855,6 +877,56 @@ class EmailSenderEnhanced:
             <p style="color: #004085; font-size: 13px; margin-top: 10px;">...and {len(new_tasks) - 5} more new tasks</p>
 """
             html += """
+        </div>
+"""
+
+        # Random Rediscoveries Section
+        import random
+        remaining_tasks = top_tasks[20:]
+        if len(remaining_tasks) >= 10:
+            random_picks = random.sample(remaining_tasks, 10)
+            html += """
+        <h2 style="color: #6b21a8; border-bottom: 2px solid #9333ea; padding-bottom: 8px;">🎲 Random Rediscoveries</h2>
+        <p style="color: #7c3aed; font-size: 14px; margin-bottom: 15px;">Tasks you may have forgotten - different each time!</p>
+"""
+            for i, item in enumerate(random_picks, 1):
+                task = item['task']
+                analysis = item['analysis']
+                score = item['priority_score']
+                task_id = task.get('id', '')
+
+                # Use purple styling for random rediscoveries
+                html += f"""
+        <div class="task" style="border-left-color: #9333ea;">
+            <div class="task-title">
+                {i}. <span class="task-score" style="background-color: #9333ea;">{score:.1f}</span> {escape(task['title'])}
+            </div>
+            <div class="task-detail"><strong>Summary:</strong> {escape(analysis.get('summary', 'N/A'))}</div>
+            <div class="task-detail"><strong>Next Action:</strong> {escape(analysis.get('suggested_action', 'N/A'))}</div>
+            <div class="task-detail"><strong>Estimated Time:</strong> {analysis.get('estimated_time_minutes', 'N/A')} minutes</div>
+"""
+
+                # Add URLs if available
+                urls = task.get('urls', [])
+                if urls:
+                    html += """
+            <div class="task-detail"><strong>Links:</strong><br>
+"""
+                    for url in urls[:3]:
+                        html += f"""
+                <a href="{url}" style="color: #9333ea; text-decoration: none; display: block; margin: 3px 0;">{escape(url[:60])}{'...' if len(url) > 60 else ''}</a>
+"""
+                    html += """
+            </div>
+"""
+
+                # Add Quick Action link
+                todo_web_url = f"https://to-do.microsoft.com/tasks/id/{task_id}/details"
+                html += f"""
+            <div class="quick-actions">
+                <strong style="font-size: 12px; color: #777;">Quick Action:</strong><br>
+                <a href="{todo_web_url}" class="action-btn" style="text-decoration: none;" title="Open in Microsoft To Do">📱 Open in To Do</a>
+            </div>
         </div>
 """
 

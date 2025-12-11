@@ -399,6 +399,7 @@ class WeeklyTrendsAnalyzer:
                             "age_days": age_days,
                             "list_name": task.get("list_name", "Unknown"),
                             "id": task.get("id"),
+                            "urls": task.get("urls", []),
                         })
                 except (ValueError, TypeError):
                     pass
@@ -952,8 +953,15 @@ class WeeklyTrendsAnalyzer:
                 f"*These change each week to help surface forgotten items*",
                 f"",
             ])
-            for task in random_forgotten.get("random_tasks", []):
-                report_lines.append(f"- [{task['age_days']} days] {task['title']}")
+            for i, task in enumerate(random_forgotten.get("random_tasks", []), 1):
+                report_lines.append(f"### {i}. [{task['age_days']} days old] {task['title']}")
+                report_lines.append(f"- **List:** {task.get('list_name', 'Unknown')}")
+                urls = task.get('urls', [])
+                if urls:
+                    report_lines.append(f"- **Links:**")
+                    for url in urls[:3]:
+                        report_lines.append(f"  - {url}")
+                report_lines.append("")
             report_lines.append("")
 
         # URL Domain Analysis
