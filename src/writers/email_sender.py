@@ -24,13 +24,14 @@ class EmailSender:
         self.to_email = Config.EMAIL_TO
         self.password = Config.EMAIL_PASSWORD
 
-    def send_daily_brief(self, brief_path: str, top_tasks: List[Dict]) -> bool:
+    def send_daily_brief(self, brief_path: str, top_tasks: List[Dict], random_rediscoveries: List[Dict] = None) -> bool:
         """
         Send daily brief via email.
 
         Args:
             brief_path: Path to the markdown brief file.
             top_tasks: List of top priority tasks.
+            random_rediscoveries: List of random tasks (unused in basic sender, for API compatibility).
 
         Returns:
             True if successful, False otherwise.

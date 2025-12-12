@@ -222,6 +222,9 @@ def main():
         brief_path = brief_generator.generate_daily_brief(categorized)
         logger.info(f"Daily brief saved to: {brief_path}")
 
+        # Step 7.5: Get random rediscoveries (centralized, used by console and email)
+        random_rediscoveries = ranker.get_random_rediscoveries(ranked_tasks, count=10, skip_top=20)
+
         # Step 8: Update tasks (if enabled)
         if Config.ENABLE_TASK_UPDATES:
             logger.info("Step 8: Updating tasks in Microsoft To Do")
@@ -242,7 +245,7 @@ def main():
             else:
                 email_sender = EmailSender()
 
-            email_sent = email_sender.send_daily_brief(brief_path, ranked_tasks)
+            email_sent = email_sender.send_daily_brief(brief_path, ranked_tasks, random_rediscoveries)
             if email_sent:
                 logger.info(f"Email brief sent to {Config.EMAIL_TO}")
                 print(f"\n[SUCCESS] Email brief sent to {Config.EMAIL_TO}")
@@ -324,14 +327,11 @@ def main():
             title = task['title'].encode('ascii', 'replace').decode('ascii')
             print(f"{i}. [{score:.1f}] {title}")
 
-        # Print 10 random rediscoveries (tasks outside top 20)
-        import random
-        remaining_tasks = ranked_tasks[20:]
-        if len(remaining_tasks) >= 10:
-            random_picks = random.sample(remaining_tasks, 10)
+        # Print 10 random rediscoveries (using centralized selection from Step 7.5)
+        if random_rediscoveries:
             print("\n=== 10 Random Rediscoveries ===")
             print("(Tasks you may have forgotten - different each run)\n")
-            for i, item in enumerate(random_picks, 1):
+            for i, item in enumerate(random_rediscoveries, 1):
                 task = item["task"]
                 score = item["priority_score"]
                 title = task['title'].encode('ascii', 'replace').decode('ascii')

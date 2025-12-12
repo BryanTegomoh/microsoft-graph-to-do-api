@@ -30,13 +30,14 @@ class EmailSenderEnhanced:
         self.to_email = Config.EMAIL_TO
         self.password = Config.EMAIL_PASSWORD
 
-    def send_daily_brief(self, brief_path: str, top_tasks: List[Dict]) -> bool:
+    def send_daily_brief(self, brief_path: str, top_tasks: List[Dict], random_rediscoveries: List[Dict] = None) -> bool:
         """
         Send enhanced daily brief via email with Morning Insight and Quick Actions.
 
         Args:
             brief_path: Path to the markdown brief file.
             top_tasks: List of top priority tasks.
+            random_rediscoveries: List of randomly selected tasks for rediscovery section.
 
         Returns:
             True if successful, False otherwise.
@@ -53,10 +54,10 @@ class EmailSenderEnhanced:
             msg['To'] = self.to_email
 
             # Create plain text version
-            text_content = self._create_text_version(top_tasks, markdown_content)
+            text_content = self._create_text_version(top_tasks, markdown_content, random_rediscoveries)
 
             # Create HTML version with enhancements
-            html_content = self._create_html_version_enhanced(top_tasks, markdown_content)
+            html_content = self._create_html_version_enhanced(top_tasks, markdown_content, random_rediscoveries)
 
             # Attach both versions
             part1 = MIMEText(text_content, 'plain')
@@ -389,7 +390,7 @@ class EmailSenderEnhanced:
 
         return stats
 
-    def _create_text_version(self, top_tasks: List[Dict], full_content: str) -> str:
+    def _create_text_version(self, top_tasks: List[Dict], full_content: str, random_rediscoveries: List[Dict] = None) -> str:
         """Create plain text email version with morning insight."""
         lines = []
         lines.append(f"Daily Task Brief - {datetime.now().strftime('%B %d, %Y')}")
@@ -417,18 +418,15 @@ class EmailSenderEnhanced:
             lines.append(f"   Time: {analysis.get('estimated_time_minutes', 'N/A')} minutes")
             lines.append("")
 
-        # Add Random Rediscoveries
-        lines.append("=" * 60)
-        lines.append("")
-        lines.append("RANDOM REDISCOVERIES")
-        lines.append("(Tasks you may have forgotten - different each run)")
-        lines.append("")
+        # Add Random Rediscoveries (using centralized selection)
+        if random_rediscoveries:
+            lines.append("=" * 60)
+            lines.append("")
+            lines.append("RANDOM REDISCOVERIES")
+            lines.append("(Tasks you may have forgotten - different each run)")
+            lines.append("")
 
-        import random
-        remaining_tasks = top_tasks[20:]
-        if len(remaining_tasks) >= 10:
-            random_picks = random.sample(remaining_tasks, 10)
-            for i, item in enumerate(random_picks, 1):
+            for i, item in enumerate(random_rediscoveries, 1):
                 task = item['task']
                 analysis = item['analysis']
                 score = item['priority_score']
@@ -448,7 +446,7 @@ class EmailSenderEnhanced:
 
         return "\n".join(lines)
 
-    def _create_html_version_enhanced(self, top_tasks: List[Dict], markdown_content: str) -> str:
+    def _create_html_version_enhanced(self, top_tasks: List[Dict], markdown_content: str, random_rediscoveries: List[Dict] = None) -> str:
         """Create enhanced HTML email with Morning Insight, Quick Actions, and new sections."""
         # Generate time-optimized insight (replaces morning insight)
         time_insight = self._generate_time_optimized_insight(top_tasks)
@@ -880,16 +878,13 @@ class EmailSenderEnhanced:
         </div>
 """
 
-        # Random Rediscoveries Section
-        import random
-        remaining_tasks = top_tasks[20:]
-        if len(remaining_tasks) >= 10:
-            random_picks = random.sample(remaining_tasks, 10)
+        # Random Rediscoveries Section (using centralized selection)
+        if random_rediscoveries:
             html += """
         <h2 style="color: #6b21a8; border-bottom: 2px solid #9333ea; padding-bottom: 8px;">🎲 Random Rediscoveries</h2>
         <p style="color: #7c3aed; font-size: 14px; margin-bottom: 15px;">Tasks you may have forgotten - different each time!</p>
 """
-            for i, item in enumerate(random_picks, 1):
+            for i, item in enumerate(random_rediscoveries, 1):
                 task = item['task']
                 analysis = item['analysis']
                 score = item['priority_score']

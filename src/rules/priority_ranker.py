@@ -1,6 +1,7 @@
 """Priority ranking system for tasks."""
 
 import logging
+import random
 from typing import List, Dict
 from datetime import datetime, timedelta
 from dateutil import parser
@@ -297,3 +298,34 @@ class PriorityRanker:
             return 0 <= days_until <= 7
         except Exception:
             return False
+
+    def get_random_rediscoveries(
+        self,
+        ranked_tasks: List[Dict],
+        count: int = 10,
+        skip_top: int = 20
+    ) -> List[Dict]:
+        """
+        Get random tasks from outside the top priorities.
+
+        This helps surface forgotten tasks that the algorithm doesn't prioritize
+        but may still be valuable.
+
+        Args:
+            ranked_tasks: List of ranked tasks with scores.
+            count: Number of random tasks to return.
+            skip_top: Number of top-ranked tasks to exclude.
+
+        Returns:
+            List of randomly selected tasks.
+        """
+        remaining_tasks = ranked_tasks[skip_top:]
+
+        if len(remaining_tasks) < count:
+            logger.info(f"Only {len(remaining_tasks)} tasks available for random selection")
+            return remaining_tasks
+
+        random_picks = random.sample(remaining_tasks, count)
+        logger.info(f"Selected {count} random rediscoveries from {len(remaining_tasks)} candidates")
+
+        return random_picks
